@@ -1,0 +1,12 @@
+interface:
+  display_name: "Sending Codex To Figma Sample"
+  short_description: "Sample Codex skill for batch app-to-Figma capture"
+  default_prompt: "Capture multiple app screens and map them to Figma frames with a codex-first workflow."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "figma"
+      description: "Figma MCP server"
+      transport: "streamable_http"
+      url: "https://mcp.figma.com/mcp"

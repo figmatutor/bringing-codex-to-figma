@@ -1,0 +1,1 @@
+skills/.curated/sending-codex-to-figma-sample/SKILL.md
