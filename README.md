@@ -33,29 +33,31 @@ skills/.curated/sending-codex-to-figma-sample
 - This is a sample/learning skill, not a production-certified workflow.
 - Claude-only directives were removed and replaced with Codex-compatible instructions.
 
-## Publish And Install (Codex)
+## Skill Installer Usage (openai/skills)
 
-1. Make the GitHub repo public (one-time):
+List curated skills from `openai/skills`:
 
 ```bash
-gh repo edit dusskapark/sending-codex-to-figma-sample \
-  --visibility public \
-  --accept-visibility-change-consequences
+python3 ~/.codex/skills/.system/skill-installer/scripts/list-skills.py
 ```
 
-2. Install the skill in Codex with the built-in `skill-installer` script:
+Install one curated skill from `openai/skills`:
 
 ```bash
 python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
-  --repo dusskapark/sending-codex-to-figma-sample \
-  --path skills/.curated/sending-codex-to-figma-sample
+  --repo openai/skills \
+  --path skills/.curated/<skill-name>
 ```
 
-Alternative URL form:
+Install from a GitHub URL path:
 
 ```bash
 python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
-  --url https://github.com/dusskapark/sending-codex-to-figma-sample/tree/main/skills/.curated/sending-codex-to-figma-sample
+  --url https://github.com/openai/skills/tree/main/skills/.curated/<skill-name>
 ```
 
-3. Restart Codex to pick up the newly installed skill.
+## Manual (Short)
+
+1. `list-skills.py`로 목록 확인
+2. `install-skill-from-github.py`로 설치
+3. Codex 재시작
