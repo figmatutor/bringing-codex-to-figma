@@ -1,12 +1,12 @@
 ---
-name: sending-codex-to-figma-sample
+name: bringing-codex-to-figma
 description: Sample skill for Codex to capture multiple app routes/states and send them to Figma design frames via the Figma MCP HTML-to-Design capture flow. Use when the user wants full-app batch capture, auto route discovery, section grouping, and node mapping output.
 compatibility:
   - "Playwright (`playwright` package in the target project; recommended: `npm install -D playwright`)"
   - "Figma Dev Mode MCP configured for Codex (`codex mcp add figma --transport streamable-http https://mcp.figma.com/mcp`)"
 ---
 
-# Sending Codex To Figma Sample
+# Bringing Codex To Figma
 
 Capture many app screens and push them into Figma as ordered frames.
 Discovers routes automatically, opens browser tabs in parallel, and captures each screen sequentially.
