@@ -1,4 +1,4 @@
-# sending-codex-to-figma-sample
+# bringing-codex-to-figma
 
 Agent skill for Codex to capture multiple app views and send them to Figma.
 
@@ -6,20 +6,20 @@ Agent skill for Codex to capture multiple app views and send them to Figma.
 
 This repository contains one installable skill:
 
-- `skills/.curated/sending-codex-to-figma-sample/`
+- `skills/.curated/bringing-codex-to-figma/`
 
 ## Installing This Skill
 
 Install from inside Codex using `$skill-installer`.
 
 ```text
-$skill-installer install https://github.com/dusskapark/sending-codex-to-figma-sample/tree/main/skills/.curated/sending-codex-to-figma-sample
+$skill-installer install https://github.com/dusskapark/bringing-codex-to-figma/tree/main/skills/.curated/bringing-codex-to-figma
 ```
 
 For local development, you can also link the skill folder into a project:
 
 ```text
-<project>/.agents/skills/sending-codex-to-figma-sample
+<project>/.agents/skills/bringing-codex-to-figma
 ```
 
 After installing a skill, restart Codex to pick up new skills.
@@ -29,7 +29,7 @@ After installing a skill, restart Codex to pick up new skills.
 In Codex chat, ask for full-app capture to Figma. Example:
 
 ```text
-Use sending-codex-to-figma-sample to discover routes, run batch capture, and send to Figma.
+Use bringing-codex-to-figma to discover routes, run batch capture, and send to Figma.
 ```
 
 The skill workflow and behavior are defined in `SKILL.md`.
