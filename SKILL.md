@@ -2,55 +2,160 @@
 name: bringing-codex-to-figma
 description: |
   Automatically captures and exports app routes or state-driven views to Figma,
-  grouping the resulting frames with label screens. Use when the user wants to
-  capture an entire app to Figma, document every route, handle auth-required
-  flows, or batch-capture a multi-screen SPA. Requires the Figma MCP server.
+  using Codex structured questions for pre-flight input and parallel Scout,
+  Engineer, Factory, Trigger, and Collector workstreams. Use when the user
+  wants to capture an entire app to Figma, document every route, handle
+  auth-required flows, or batch-capture a multi-screen SPA. Requires the
+  Figma MCP server.
 license: MIT
 metadata:
   author: JooHyung Park <dusskapark@gmail.com>
-  version: "1.0.0"
-compatibility: |
-  - Playwright: `npm install playwright` (project-local install is recommended)
-  - Figma MCP: configure the `figma` MCP server for Codex before use
+  version: "1.1.0"
 ---
 
 # bringing-codex-to-figma
 
 Automates `generate_figma_design` plus raw CDP capture across all app routes,
-then groups the imported frames with label screens for clean Figma organization.
+then inserts `label-*` screens as visual dividers in Figma.
 
 > Use this skill explicitly as `$bringing-codex-to-figma`.
 
 > **`{SKILL_DIR}`** is the installed skill directory. Resolve script and reference
 > paths relative to it.
 
+> Parallel work is mandatory in this skill. Use sub-agents when the runtime
+> supports them. Otherwise emulate the same split with Codex's parallel tool
+> runner. Do not collapse Scout/Engineer, Factory/prepare overlap, or
+> Trigger/Collector into one serialized flow unless a blocker forces it.
+
+Prerequisites:
+
+- Playwright should be installed in the target project with `npm install playwright`.
+- The Figma MCP server must be configured and reachable from Codex.
+
+## Mode switch: dry-run
+
+If the user explicitly says `--dry-run`, "validation run", "test only", or
+"do not open a real browser":
+
+- Append `--dry-run` to every `capture.mjs` command.
+- Skip `generate_figma_design`, `execute-cdp.mjs`, browser readiness checks,
+  and live-browser cleanup.
+- Finish after validating the route/view plan and the generated
+  `.capture-session.json`.
+
 ## Workflow
 
-Follow this workflow in order. Keep `SKILL.md` lean and read the linked references
-only when that detail is needed.
+### Step 0: Structured pre-flight
 
-### Step 0: Pre-flight
+Use Codex's structured question tool for pre-flight input. Do not ask these
+questions as free-form terminal or chat text.
 
-Ask exactly two concise questions before doing any capture work:
+If the user already supplied one or both answers, do not ask for them again.
+Ask exactly two questions total:
 
-1. Where should the captured frames go: a new Figma file, or an existing file URL?
-2. What viewport should be used for every capture? Default to `1440x900`.
+**Question 1 - Figma target**
+```yaml
+AskUserQuestion:
+  question: "Where should the captured frames go?"
+  header: "Figma target"
+  options:
+    - label: "New Figma file (Recommended)"
+      description: "Creates a fresh file and avoids collisions."
+    - label: "Existing file URL"
+      description: "Paste a Figma design file URL to append captures there."
+```
 
-Record both answers. Do not ask a third pre-flight question unless the user
-introduces a blocker that cannot be discovered from the repo.
+**Question 2 - Viewport**
+```yaml
+AskUserQuestion:
+  question: "What viewport size should be used for all captures?"
+  header: "Viewport"
+  options:
+    - label: "Desktop - 1440x900 (Recommended)"
+      description: "Best default for app capture."
+    - label: "Desktop - 1280x800"
+      description: "Smaller desktop viewport."
+    - label: "Tablet - 768x1024"
+      description: "Portrait tablet capture."
+    - label: "Mobile - 375x812"
+      description: "Typical phone viewport."
+```
 
-### Step 1: Discovery in parallel
+Record both answers before doing any discovery or browser work.
+Do not ask a third pre-flight question unless the user introduces a blocker that
+cannot be discovered from the repo.
 
-Do these two tracks in parallel:
+Normalization rules:
 
-- Route/view discovery:
-  Scan the project to enumerate every navigable route or state-driven SPA view.
-  Plan any `label-*` divider screens before capture.
-  Read [references/route-detection.md](references/route-detection.md)
-  for framework-specific detection rules.
-- Dev server and browser setup:
-  Detect whether the correct app server is already reachable. If not, start it in
-  the background and wait until it is reachable. Then run:
+- New file -> use `outputMode: "newFile"`.
+- Existing file URL -> parse `fileKey` and optional `nodeId` from the URL.
+- Custom viewport text from the user -> normalize to `WxH` before continuing.
+
+### Step 1: Parallel discovery
+
+> Dispatch Scout and Engineer in one turn. Do not wait for one before starting
+> the other.
+
+### Sub-Agent: Scout - Route and view discovery
+
+Scan the project to enumerate every navigable route or state-driven SPA view.
+Plan any `label-*` divider screens before capture.
+
+Read [references/route-detection.md](references/route-detection.md)
+for framework-specific detection rules.
+
+Rules:
+
+- Detect URL-routed apps first.
+- For state-driven SPAs, look for an existing `capture-views.mjs`. If none
+  exists, generate one in the target project only when required.
+- Substitute dynamic routes with concrete sample values before capture.
+- For LOCAL apps (`localhost`, `127.x`, `0.0.0.0`, `*.local`), verify that
+  `capture.js` is already present in the served HTML. If it is missing, add:
+
+```html
+<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+```
+
+- For EXTERNAL apps, the deployed HTML must already include `capture.js`.
+  Do not try to patch the remote host. If it is missing, stop and tell the user.
+
+Return only:
+
+```json
+{
+  "routes": ["...", "..."],
+  "labels": ["label-main:Main|/", "..."],
+  "captureJsAdded": false,
+  "viewsFile": "./capture-views.mjs"
+}
+```
+
+### Sub-Agent: Engineer - Dev server and browser
+
+Read [references/dev-server-detection.md](references/dev-server-detection.md)
+for detection order, custom-domain failures, and port-conflict handling.
+
+Step 1 - Dev server
+
+Check whether the target app is already reachable:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" --max-time 3 <appUrl>
+```
+
+- Reachable -> verify that the reachable server belongs to the correct project.
+- Wrong project on that port -> terminate the wrong process, then start the
+  correct app server.
+- Not reachable -> detect the right start command, launch it in the background,
+  and poll until reachable.
+- If the app still is not reachable after the retry window -> return
+  `serverStatus: "failed"`.
+
+Step 2 - Browser
+
+If not in dry-run mode, start the browser from the target project:
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --start-browser \
@@ -58,33 +163,50 @@ cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --start-browser \
   --viewport <WxH> &
 ```
 
-Read [references/dev-server-detection.md](references/dev-server-detection.md)
-for detection order, custom-domain failures, and port-conflict handling.
+Poll for `<projectDir>/.capture-browser.json` and read the `cdpPort` once it
+appears. Do not kill the started process during capture flow.
 
-Additional rules:
+Return only:
 
-- LOCAL apps (`localhost`, `127.x`, `0.0.0.0`, `*.local`):
-  verify `capture.js` is already present in the app HTML. If missing, add:
-
-```html
-<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+```json
+{
+  "serverStatus": "already-running",
+  "appUrl": "http://localhost:3000",
+  "cdpPort": 9222
+}
 ```
 
-- EXTERNAL apps:
-  the deployed app must already include `capture.js`; do not try to patch the
-  remote host. If missing, stop and tell the user.
+### After both sub-agents complete
 
-When both tracks finish:
+- If Engineer returned `serverStatus: "failed"`, use the structured question
+  tool to ask the user to start the server manually, then continue only once it
+  is reachable.
+- If Scout added `capture.js` and Engineer found an already-running local app,
+  restart the app server before moving on.
+- Show the discovered routes, labels, and SPA view keys, then confirm them with
+  the structured question tool before capture starts.
 
-- If the server failed to start, ask the user to start it manually and continue once reachable.
-- If you added `capture.js` to a local app that was already running, restart the app server first.
-- Show the discovered route/view list and get confirmation before capture starts.
+Example confirmation:
+
+```yaml
+AskUserQuestion:
+  question: "Do these routes and divider screens look correct?"
+  header: "Route check"
+  options:
+    - label: "Looks good (Recommended)"
+      description: "Continue to preparation."
+    - label: "I want changes"
+      description: "Pause and adjust the capture plan."
+```
 
 ### Step 2: Preparation plus capture-id generation
 
-Start tab preparation and capture-id generation so they overlap.
+> Run `--prepare` directly, then dispatch Factory immediately in parallel. Do
+> not wait for `--prepare` to finish before starting capture-id generation.
 
-Run `--prepare` directly from the target project:
+### Step 2a - Run `--prepare` directly
+
+Always run `--prepare` from the target project:
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --prepare \
@@ -95,45 +217,86 @@ cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --prepare \
   [--views-file ./capture-views.mjs]
 ```
 
-For state-driven SPAs, add `--views-file ./capture-views.mjs` and pass VIEWS keys,
-not URL paths, in `--routes`.
+For state-driven SPAs, add `--views-file ./capture-views.mjs` and pass VIEWS
+keys, not URL paths, in `--routes`.
+
 Read [references/spa-capture.md](references/spa-capture.md)
 when there is no URL router.
 
-While `--prepare` is running or immediately after it starts, generate capture IDs
-for every prepared view using `generate_figma_design`.
+If `--prepare` fails with a CDP connectivity error:
 
-- Existing Figma file: generate one capture ID per view with `outputMode: "existingFile"`.
-- New Figma file: create the file once with `outputMode: "newFile"`, share the claim URL,
-  wait for the user to claim it, then generate the remaining IDs against that file.
+1. Delete `.capture-browser.json`.
+2. Restart `capture.mjs --start-browser`.
+3. Wait for `.capture-browser.json` to reappear.
+4. Re-run `--prepare`.
 
-If `--prepare` fails with a CDP connectivity error, delete `.capture-browser.json`,
-restart `--start-browser`, wait for the handoff file to reappear, and rerun `--prepare`.
+### Step 2b - Sub-Agent: Factory - Capture-id generation
 
-Before Step 3, confirm that all tabs are open and visually ready.
+Dispatch Factory while `--prepare` is still running, or immediately after launch.
 
-### Step 3: Fire sequentially, poll in parallel
+- Existing Figma file -> generate one capture ID per prepared view with
+  `outputMode: "existingFile"`.
+- New Figma file -> call once with `outputMode: "newFile"`, share the returned
+  claim URL, wait for the user to claim it, then generate the remaining capture
+  IDs against that file.
 
-Keep frame ordering deterministic:
+Return only:
 
-- Fire `captureForDesign` left to right, one tab at a time, using:
+```json
+[
+  { "viewName": "/", "captureId": "...", "endpoint": "..." }
+]
+```
+
+After `--prepare` and Factory both complete, use the structured question tool
+to confirm that all tabs are open and visually ready before firing captures.
+
+### Step 3: Capture - fire and poll in parallel
+
+> Dispatch Trigger and Collector in one turn. Trigger fires sequentially inside
+> its own workstream. Collector polls all outstanding uploads in parallel.
+
+### Sub-Agent: Trigger - Sequential fire
+
+Fire `captureForDesign` left to right, exactly once per prepared tab.
+This order controls the left-to-right frame order in Figma.
+
+Read [references/cdp-architecture.md](references/cdp-architecture.md)
+for the raw CDP rationale and why `awaitPromise: false` is required.
+
+Always run from the target project:
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> <captureId> <endpoint>
 ```
 
-- Poll every outstanding `captureId` in parallel with `generate_figma_design(captureId)`.
-- When a capture completes, extract the returned `node-id`, convert `123-456` to `123:456`,
-  then close only that tab:
+Return only after every prepared tab has been fired.
+
+### Sub-Agent: Collector - Parallel poll and close
+
+Poll every outstanding `captureId` in parallel with `generate_figma_design`.
+
+Loop:
+
+1. Poll every pending capture ID in the same turn.
+2. For each completed capture, read the returned `node-id`.
+3. Convert `123-456` to `123:456`.
+4. Close only that tab:
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> --close-only
 ```
 
-Read [references/cdp-architecture.md](references/cdp-architecture.md)
-for the raw CDP rationale, polling model, and fallback if `execute-cdp.mjs` fails.
+5. Continue until nothing is pending.
 
-Return the final mapping as `{ "<viewName>": "<nodeId>" }`.
+Return only:
+
+```json
+{
+  "/": "123:456",
+  "label-main": "123:789"
+}
+```
 
 ### Step 4: Browser cleanup
 
@@ -145,7 +308,8 @@ kill $(lsof -t -i :<cdpPort>) 2>/dev/null || fuser -k <cdpPort>/tcp 2>/dev/null 
 
 ### Step 5: Section grouping
 
-`label-*` views create full-screen divider captures. No extra grouping tool is needed.
+`label-*` views create full-screen divider captures. No extra grouping tool is
+needed after import.
 
 ## References
 
@@ -162,7 +326,11 @@ kill $(lsof -t -i :<cdpPort>) 2>/dev/null || fuser -k <cdpPort>/tcp 2>/dev/null 
 
 ## Notes
 
-- Keep generated `capture-views.mjs` in the target project, not in the skill repo.
-- Do not duplicate long procedural content from the reference files into this document.
-- For git commits in downstream repos, prefer the user's GitHub `noreply` email;
-  do not assume a Codex- or OpenAI-specific `noreply` address exists.
+- Every explicit user choice in this workflow should use Codex's structured
+  question UI, not plain terminal text.
+- Keep generated `capture-views.mjs` in the target project, not in the skill
+  repo.
+- Do not duplicate long procedural content from the reference files into this
+  document.
+- For git commits in downstream repos, prefer the user's GitHub `noreply`
+  email; do not assume a Codex- or OpenAI-specific `noreply` address exists.

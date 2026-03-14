@@ -1,7 +1,7 @@
 interface:
   display_name: "Bringing Codex To Figma"
-  short_description: "Batch-capture app screens into organized Figma frames"
-  default_prompt: "Use $bringing-codex-to-figma to discover app routes or SPA views, prepare browser tabs, and capture the screens into Figma."
+  short_description: "Capture app routes into Figma with structured pre-flight and parallel workstreams"
+  default_prompt: "Use $bringing-codex-to-figma to ask structured pre-flight questions, discover routes or SPA views in parallel, prepare browser tabs, and capture the screens into Figma."
 
 dependencies:
   tools:
