@@ -1,0 +1,126 @@
+{
+  "skill_name": "bringing-codex-to-figma",
+  "notes": [
+    "Fixtures are generated on demand and are not committed. Run the setup commands once",
+    "before executing the evals. {SKILL_DIR} = skill base directory.",
+    "",
+    "All evals use --dry-run so no browser or Figma connection is required.",
+    "They validate route detection, prepare command construction, and",
+    ".capture-session.json output."
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "name": "next-app-dry-run",
+      "scenario": "URL-routed Next.js app (App Router)",
+      "fixture": {
+        "dir": "testapp/next-app",
+        "setup": {
+          "cwd": "{SKILL_DIR}/testapp",
+          "command": "npx --yes create-next-app@latest next-app --ts --app --src-dir --yes --no-tailwind --no-eslint --no-git"
+        },
+        "post_setup": {
+          "cwd": "{SKILL_DIR}/testapp/next-app",
+          "commands": [
+            "mkdir -p 'src/app/blog/[slug]'",
+            "cp {SKILL_DIR}/evals/fixtures/next-app-blog-page.tsx src/app/blog/page.tsx",
+            "cp {SKILL_DIR}/evals/fixtures/next-app-blog-slug-page.tsx 'src/app/blog/[slug]/page.tsx'"
+          ]
+        },
+        "result": "src/app/ contains page.tsx (/), blog/page.tsx (/blog), and blog/[slug]/page.tsx (/blog/[slug])"
+      },
+      "prompt": "Use $bringing-codex-to-figma for a Next.js app at {SKILL_DIR}/testapp/next-app. New Figma file, desktop 1440x900. This is a validation run, so use --dry-run and do not open a real browser.",
+      "expected_behavior": [
+        "Scout scans src/app/ and finds /, /blog, and /blog/[slug]",
+        "The dynamic segment is substituted with a concrete sample value",
+        "capture.mjs --prepare --dry-run is called with the discovered routes",
+        ".capture-session.json is written with dryRun: true and isLocal: true"
+      ],
+      "assertions": [
+        {
+          "name": "--dry-run flag used",
+          "type": "command_flag",
+          "description": "capture.mjs --prepare must be called with --dry-run"
+        },
+        {
+          "name": ".capture-session.json written",
+          "type": "file_exists",
+          "description": "File written in the project directory"
+        },
+        {
+          "name": "dryRun: true in session",
+          "type": "json_field",
+          "description": "Top-level dryRun field must be true"
+        },
+        {
+          "name": "isLocal: true in session",
+          "type": "json_field",
+          "description": "App URL is localhost, so isLocal must be true"
+        },
+        {
+          "name": "root route / in tabs",
+          "type": "json_array_item",
+          "description": "tabs includes an entry with viewName: '/'"
+        },
+        {
+          "name": "dynamic route substituted",
+          "type": "json_array_item",
+          "description": "tabs includes a concrete path for /blog/[slug]"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "react-spa-dry-run",
+      "scenario": "State-driven SPA (Vite React)",
+      "fixture": {
+        "dir": "testapp/react-spa",
+        "setup": {
+          "cwd": "{SKILL_DIR}/testapp",
+          "command": "npm create vite@latest react-spa -- --template react"
+        },
+        "post_setup": {
+          "cwd": "{SKILL_DIR}/testapp/react-spa",
+          "commands": [
+            "cp {SKILL_DIR}/evals/fixtures/react-spa-App.jsx src/App.jsx",
+            "cp {SKILL_DIR}/evals/fixtures/react-spa-capture-views.mjs capture-views.mjs"
+          ]
+        },
+        "result": "A Vite React SPA with src/App.jsx tabs and capture-views.mjs"
+      },
+      "prompt": "Use $bringing-codex-to-figma for the React SPA at {SKILL_DIR}/testapp/react-spa. It has no URL router and already contains capture-views.mjs. New Figma file, desktop 1440x900. This is a validation run, so use --dry-run only.",
+      "expected_behavior": [
+        "The project is identified as a state-driven SPA",
+        "capture.mjs --prepare --dry-run --views-file ./capture-views.mjs is called",
+        ".capture-session.json is written with non-URL view names"
+      ],
+      "assertions": [
+        {
+          "name": "--dry-run flag used",
+          "type": "command_flag",
+          "description": "capture.mjs --prepare must be called with --dry-run"
+        },
+        {
+          "name": "--views-file flag used",
+          "type": "command_flag",
+          "description": "--views-file ./capture-views.mjs must be included"
+        },
+        {
+          "name": ".capture-session.json written",
+          "type": "file_exists",
+          "description": "File written in the project directory"
+        },
+        {
+          "name": "dryRun: true in session",
+          "type": "json_field",
+          "description": "Top-level dryRun field must be true"
+        },
+        {
+          "name": "tabs have non-URL view names",
+          "type": "json_array_item",
+          "description": "viewName values are SPA keys such as home, counter, about"
+        }
+      ]
+    }
+  ]
+}
