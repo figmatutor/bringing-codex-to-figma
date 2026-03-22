@@ -13,14 +13,7 @@ discovery, browser automation, and Figma import coordination.
 ### `figma-create-figma-skill`
 
 Scaffolds a new Figma skill inside this multi-skill repository. It creates the
-standard directory layout and links shared reference material used by other
-Figma skills.
-
-### `figma-evaluate-script`
-
-Provides a structured workflow for running JavaScript against the Figma Plugin
-API through Codex. This is the core skill for inspecting or modifying Figma
-files programmatically.
+standard directory layout for skill documentation, scripts, and agent config.
 
 ### `figma-scan-nodes`
 
@@ -40,7 +33,6 @@ consistently.
 skills/
   bringing-codex-to-figma/
   figma-create-figma-skill/
-  figma-evaluate-script/
   figma-scan-nodes/
   figma-set-text/
 ```
@@ -52,7 +44,6 @@ scripts, or agent configuration needed for that workflow.
 
 1. Use `figma-scan-nodes` to discover the relevant nodes.
 2. Use `figma-set-text` when batch text replacement is needed.
-3. Use `figma-evaluate-script` for direct Plugin API inspection or edits.
-4. Use `bringing-codex-to-figma` when the task is capturing application views
+3. Use `bringing-codex-to-figma` when the task is capturing application views
    into Figma.
-5. Use `figma-create-figma-skill` to scaffold additional skills in this repo.
+4. Use `figma-create-figma-skill` to scaffold additional skills in this repo.

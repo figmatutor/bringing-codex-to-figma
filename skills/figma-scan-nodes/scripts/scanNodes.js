@@ -1,5 +1,5 @@
 // scanNodes.js - generic node scanning utility
-// Execute this with the figma-evaluate-script pattern. It is currently used through mcp__figma__use_figma.
+// Execute this through mcp__figma__use_figma or an equivalent Plugin API runner.
 //
 // Usage:
 //   scanNodes({ nodeId: "0:1", types: ["TEXT"], useChunking: true, chunkSize: 10 })

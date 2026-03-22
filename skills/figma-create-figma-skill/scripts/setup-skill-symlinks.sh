@@ -18,20 +18,6 @@ DISPLAY_NAME="$(printf '%s\n' "${SKILL_NAME}" | tr '-' ' ' | awk '{for (i = 1; i
 
 mkdir -p "${REF_DIR}" "${SCRIPT_TARGET_DIR}" "${AGENTS_DIR}"
 
-for f in \
-  "api-reference.md" \
-  "common-patterns.md" \
-  "gotchas.md" \
-  "plugin-api-patterns.md" \
-  "plugin-api-standalone.d.ts" \
-  "plugin-api-standalone.index.md" \
-  "validation-and-recovery.md" \
-  "variable-patterns.md"
-do
-  ln -sfn "../../figma-evaluate-script/references/${f}" "${REF_DIR}/${f}"
-  echo "  Linked: ${REF_DIR}/${f}"
-done
-
 if [ ! -f "${SKILL_DIR}/SKILL.md" ]; then
   cat > "${SKILL_DIR}/SKILL.md" <<EOF
 ---
@@ -71,4 +57,3 @@ echo "  1. Refine ${SKILL_DIR}/SKILL.md"
 echo "  2. Refine ${AGENTS_DIR}/openai.yaml"
 echo "  3. Add skill-specific references to ${REF_DIR}/"
 echo "  4. Add skill-specific scripts to ${SCRIPT_TARGET_DIR}/"
-echo "  5. Remove shared-reference symlinks this skill does not need"
