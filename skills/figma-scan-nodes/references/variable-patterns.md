@@ -1,0 +1,1 @@
+../../figma-evaluate-script/references/variable-patterns.md

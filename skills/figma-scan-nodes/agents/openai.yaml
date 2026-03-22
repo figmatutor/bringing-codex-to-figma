@@ -1,0 +1,4 @@
+interface:
+  display_name: "Figma Scan Nodes"
+  short_description: "Scan Figma nodes by type with structured metadata"
+  default_prompt: "Use $figma-scan-nodes to scan a Figma subtree, collect node IDs, and prepare follow-up edits or mappings."

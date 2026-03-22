@@ -1,0 +1,4 @@
+interface:
+  display_name: "Figma Set Text"
+  short_description: "Batch-replace text across Figma TEXT nodes"
+  default_prompt: "Use $figma-set-text to batch-replace multiple Figma TEXT nodes after mapping source content to scanned node IDs."

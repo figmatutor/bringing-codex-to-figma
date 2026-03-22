@@ -1,32 +1,31 @@
 #!/usr/bin/env node
 /**
- * capture.mjs — Browser preparation for bringing-codex-to-figma
+ * capture.mjs — Browser preparation script for bringing-codex-to-figma
  *
- * Two modes:
+ * Supports two modes:
  *
  * --start-browser
- *   Opens a headful Playwright browser, handles auth, then keeps the browser
- *   alive and writes .capture-browser.json with the CDP port. Step 2's
- *   --prepare connects to this browser automatically.
+ *   Open a headful Playwright browser, complete authentication, then keep the browser alive.
+ *   Write .capture-browser.json with the CDP port,
+ *   and let step 2's --prepare connect to this browser automatically.
  *
  * --prepare
- *   If .capture-browser.json exists: connects to that browser, opens all route
- *   and label tabs, then exits. Otherwise launches a fresh browser, handles
- *   auth inline, and keeps the browser open.
+ *   If .capture-browser.json exists, connect to that browser, open all route/label tabs, and exit.
+ *   Otherwise launch a fresh browser, handle authentication inline, and keep the browser open.
  *
  * --dry-run
- *   With --start-browser: prints what would happen, then exits.
- *   With --prepare: prints the tab plan, writes a dry-run
- *   .capture-session.json, then exits without opening a browser.
+ *   With --start-browser, print the planned work and exit.
+ *   With --prepare, print the tab plan, write a dry-run
+ *   .capture-session.json, then exit without opening a browser.
  *
  * Parameters:
  *   --routes     Comma-separated URL paths or VIEWS keys
  *   --labels     Comma-separated label specs: "name:Title|/path"
  *   --app-url    Base app URL
- *   --viewport   WxH viewport size
+ *   --viewport   Viewport size in WxH format
  *   --views-file Optional capture-views.mjs path for SPAs
  *
- * Outputs:
+ * Output files:
  *   .capture-browser.json
  *   .capture-session.json
  */

@@ -2,8 +2,8 @@
 /**
  * execute-cdp.mjs — Execute captureForDesign in a prepared tab.
  *
- * Uses raw CDP to avoid Playwright session conflicts between capture.mjs and
- * the follow-up execution process.
+ * Use raw CDP directly to avoid Playwright session conflicts between
+ * capture.mjs and the follow-up execution process.
  */
 
 import { readFileSync } from 'fs';
