@@ -1,4 +1,4 @@
-# figma-plugin-alpha-031326
+# Figma Workflow Skills
 
 This repository contains Codex-compatible skills focused on Figma workflows.
 
