@@ -290,11 +290,20 @@ missing values.
 
 ### Step 4: Browser cleanup
 
-After all captures complete, close the CDP browser:
+After all captures complete, close only the `--start-browser` helper process
+recorded in `.capture-browser.json`. Avoid broad port-kill patterns.
 
 ```bash
-kill $(lsof -t -i :<cdpPort>) 2>/dev/null || fuser -k <cdpPort>/tcp 2>/dev/null || true
+BROWSER_JSON="<projectDir>/.capture-browser.json"
+PID="$(node -e "const fs=require('fs');const p=process.argv[1];if(!fs.existsSync(p))process.exit(0);const j=JSON.parse(fs.readFileSync(p,'utf8'));if(Number.isInteger(j.startBrowserPid))process.stdout.write(String(j.startBrowserPid));" "$BROWSER_JSON")"
+
+if [ -n "$PID" ] && ps -p "$PID" -o command= | grep -q "capture.mjs --start-browser"; then
+  kill "$PID"
+fi
 ```
+
+If PID-based shutdown is not available, ask the user to close the browser
+manually instead of killing by port.
 
 ### Step 5: Section grouping in Figma
 

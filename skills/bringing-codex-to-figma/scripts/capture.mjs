@@ -149,7 +149,18 @@ if (args['start-browser']) {
   }
 
   const browserJsonPath = resolve(process.cwd(), '.capture-browser.json');
-  writeFileSync(browserJsonPath, JSON.stringify({ cdpPort }, null, 2));
+  writeFileSync(
+    browserJsonPath,
+    JSON.stringify(
+      {
+        cdpPort,
+        startBrowserPid: process.pid,
+        startedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    )
+  );
 
   console.log('');
   console.log('✓ Browser ready — authenticated');
@@ -296,9 +307,15 @@ const hasHandover = existsSync(browserJsonPath);
 let browser;
 let context;
 let cdpPort;
+let startBrowserPid = null;
 
 if (hasHandover) {
-  ({ cdpPort } = JSON.parse(readFileSync(browserJsonPath, 'utf-8')));
+  const handover = JSON.parse(readFileSync(browserJsonPath, 'utf-8'));
+  cdpPort = handover.cdpPort;
+  startBrowserPid =
+    Number.isInteger(handover.startBrowserPid) && handover.startBrowserPid > 0
+      ? handover.startBrowserPid
+      : null;
   console.log(`[prepare] mode: ${isLocal ? 'LOCAL' : 'EXTERNAL'}`);
   console.log(`[prepare] app:  ${appUrl}`);
   console.log(`[prepare] tabs: ${allViews.map((v) => v.name).join(', ')}`);
@@ -440,6 +457,7 @@ if (!isLocal) {
 
 const sessionData = {
   cdpPort,
+  startBrowserPid,
   appUrl,
   isLocal,
   viewport: { width, height },
