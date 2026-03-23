@@ -255,13 +255,18 @@ async function setMultipleTextContents(params) {
         };
       }
 
+      let textNode;
+      let originalFills;
+      let didHighlight = false;
+      let replacementSucceeded = false;
+
       try {
         console.log(
           `Attempting to replace text in node: ${replacement.nodeId}`
         );
 
         // Get the target text node, verify that it exists, and read the original text
-        const textNode = await figma.getNodeByIdAsync(replacement.nodeId);
+        textNode = await figma.getNodeByIdAsync(replacement.nodeId);
 
         if (!textNode) {
           console.error(`Text node not found: ${replacement.nodeId}`);
@@ -289,7 +294,6 @@ async function setMultipleTextContents(params) {
         console.log(`Will replace with: "${replacement.text}"`);
 
         // Highlight the node before changing its text
-        let originalFills;
         try {
           // Save the original fills so they can be restored later
           originalFills = JSON.parse(JSON.stringify(textNode.fills));
@@ -301,6 +305,7 @@ async function setMultipleTextContents(params) {
               opacity: 0.3,
             },
           ];
+          didHighlight = true;
         } catch (highlightErr) {
           console.error(
             `Error highlighting text node: ${highlightErr.message}`
@@ -313,17 +318,7 @@ async function setMultipleTextContents(params) {
           nodeId: replacement.nodeId,
           text: replacement.text,
         });
-
-        // Keep the highlight briefly after the text change, then restore the original fills
-        if (originalFills) {
-          try {
-            // Use the delay helper to keep timing consistent
-            await delay(500);
-            textNode.fills = originalFills;
-          } catch (restoreErr) {
-            console.error(`Error restoring fills: ${restoreErr.message}`);
-          }
-        }
+        replacementSucceeded = true;
 
         console.log(
           `Successfully replaced text in node: ${replacement.nodeId}`
@@ -343,6 +338,18 @@ async function setMultipleTextContents(params) {
           nodeId: replacement.nodeId,
           error: `Error applying replacement: ${error.message}`,
         };
+      } finally {
+        // Always try to restore visual state when highlighting was applied.
+        if (didHighlight && textNode) {
+          try {
+            if (replacementSucceeded) {
+              await delay(500);
+            }
+            textNode.fills = originalFills;
+          } catch (restoreErr) {
+            console.error(`Error restoring fills: ${restoreErr.message}`);
+          }
+        }
       }
     });
 
