@@ -171,7 +171,7 @@ function createMetadataParams(parseResult) {
 
   return {
     // get_metadata expects a nodeId parameter.
-    nodeId: parseResult.primaryNodeId || parseResult.fileKey, // Use the file root when nodeId is missing.
+    nodeId: parseResult.primaryNodeId || '0:1', // Use page root when nodeId is missing.
     fileKey: parseResult.fileKey,
     fileName: parseResult.fileName,
     fileType: parseResult.fileType,

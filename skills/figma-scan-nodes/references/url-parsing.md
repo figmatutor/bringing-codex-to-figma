@@ -237,7 +237,7 @@ function validateParseResult(parseResult) {
 ```javascript
 function createMetadataParams(parseResult) {
   return {
-    nodeId: parseResult.primaryNodeId || parseResult.fileKey,
+    nodeId: parseResult.primaryNodeId || '0:1',
     fileKey: parseResult.fileKey,
     fileName: parseResult.fileName,
     fileType: parseResult.fileType,
