@@ -18,7 +18,9 @@ function parseNodeIdsFromUrl(figmaUrl) {
     const url = new URL(figmaUrl);
 
     // Verify that the URL belongs to the Figma domain.
-    if (!url.hostname.includes('figma.com')) {
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+    const isFigmaHost = hostname === 'figma.com' || hostname.endsWith('.figma.com');
+    if (!isFigmaHost) {
       throw new Error('Invalid Figma URL: not a figma.com URL');
     }
 
