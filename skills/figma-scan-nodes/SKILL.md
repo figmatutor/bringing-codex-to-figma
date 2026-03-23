@@ -145,7 +145,6 @@ If the input is a Figma URL, use `scripts/parseNodeIdsFromUrl.js` to extract the
 ## Runtime Notes
 
 - In the current `use_figma` flow, chunking is best understood as an internal stability mechanism for large scans, not as a formal real-time progress streaming contract.
-- For broader discussion of bulk and progress APIs, see [USE_FIGMA_BULK_PROPOSAL.md](/Users/jude.park/Sites/figma/USE_FIGMA_BULK_PROPOSAL.md).
 
 ## Commonly Supported Node Types
 

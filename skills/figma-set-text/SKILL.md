@@ -122,7 +122,6 @@ Pass an object to `setMultipleTextContents(params)`:
 ## Runtime Notes
 
 - In the current `use_figma` runtime, chunking should be treated as an internal overload-reduction strategy for large edits, not as a formal contract for real-time progress reporting.
-- For broader discussion of bulk and progress APIs, see [USE_FIGMA_BULK_PROPOSAL.md](/Users/jude.park/Sites/figma/USE_FIGMA_BULK_PROPOSAL.md).
 
 ## Error Handling
 
