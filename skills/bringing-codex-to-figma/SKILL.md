@@ -2,7 +2,7 @@
 name: bringing-codex-to-figma
 description: |
   Automatically captures and exports app routes or state-driven views to Figma,
-  using Codex structured questions for pre-flight input and parallel Scout,
+  using host-supported pre-flight input and parallel Scout,
   Engineer, Factory, Trigger, and Collector workstreams. Use when the user
   wants to capture an entire app to Figma, document every route, handle
   auth-required flows, or batch-capture a multi-screen SPA. Requires the
@@ -24,14 +24,14 @@ then groups imported frames into section containers in Figma.
 > paths relative to it.
 
 > Parallel work is mandatory in this skill. Use sub-agents when the runtime
-> supports them. Otherwise emulate the same split with Codex's parallel tool
+> supports them. Otherwise emulate the same split with the host runtime's parallel tool
 > runner. Do not collapse Scout/Engineer, Factory/prepare overlap, or
 > Trigger/Collector into one serialized flow unless a blocker forces it.
 
 Prerequisites:
 
 - Playwright should be installed in the target project with `npm install playwright`.
-- The Figma MCP server must be configured and reachable from Codex.
+- The Figma MCP server must be configured and reachable from the host runtime.
 - `figma-use` skill must be loaded before any `use_figma` call in Step 5.
 
 ## Mode switch: dry-run
@@ -49,39 +49,28 @@ If the user explicitly says `--dry-run`, "validation run", "test only", or
 
 ### Step 0: Structured pre-flight
 
-Use Codex's structured question tool for pre-flight input. Do not ask these
-questions as free-form terminal or chat text.
+Use the host platform's structured choice UI for pre-flight input when available
+(Codex, Cursor, or equivalent). If structured choices are unavailable, ask the
+same questions in concise plain text.
+When user confirmation is needed, actively use the runtime's user-question tool
+(for example, `AskUserQuestion`) instead of silently assuming defaults.
 
 If the user already supplied one or both answers, do not ask for them again.
 Ask exactly two questions total:
 
 **Question 1 - Figma target**
-```yaml
-AskUserQuestion:
-  question: "Where should the captured frames go?"
-  header: "Figma target"
-  options:
-    - label: "New Figma file (Recommended)"
-      description: "Creates a fresh file and avoids collisions."
-    - label: "Existing file URL"
-      description: "Paste a Figma design file URL to append captures there."
-```
+- Prompt: `Where should the captured frames go?`
+- Choices:
+  - `New Figma file (Recommended)` — Creates a fresh file and avoids collisions.
+  - `Existing file URL` — Paste a Figma design file URL to append captures there.
 
 **Question 2 - Viewport**
-```yaml
-AskUserQuestion:
-  question: "What viewport size should be used for all captures?"
-  header: "Viewport"
-  options:
-    - label: "Desktop - 1440x900 (Recommended)"
-      description: "Best default for app capture."
-    - label: "Desktop - 1280x800"
-      description: "Smaller desktop viewport."
-    - label: "Tablet - 768x1024"
-      description: "Portrait tablet capture."
-    - label: "Mobile - 375x812"
-      description: "Typical phone viewport."
-```
+- Prompt: `What viewport size should be used for all captures?`
+- Choices:
+  - `Desktop - 1440x900 (Recommended)` — Best default for app capture.
+  - `Desktop - 1280x800` — Smaller desktop viewport.
+  - `Tablet - 768x1024` — Portrait tablet capture.
+  - `Mobile - 375x812` — Typical phone viewport.
 
 Record both answers before doing any discovery or browser work.
 Do not ask a third pre-flight question unless the user introduces a blocker that
@@ -186,25 +175,17 @@ Return only:
 
 ### After both sub-agents complete
 
-- If Engineer returned `serverStatus: "failed"`, use the structured question
-  tool to ask the user to start the server manually, then continue only once it
-  is reachable.
+- If Engineer returned `serverStatus: "failed"`, ask the user to start the
+  server manually, then continue only once it is reachable.
 - If Scout added `capture.js` and Engineer found an already-running local app,
   restart the app server before moving on.
 - Show discovered routes/views plus grouping plan and confirm before capture starts.
 
-Example confirmation:
-
-```yaml
-AskUserQuestion:
-  question: "Do these routes/views and section groups look correct?"
-  header: "Capture plan"
-  options:
-    - label: "Looks good (Recommended)"
-      description: "Continue to preparation."
-    - label: "I want changes"
-      description: "Pause and adjust the capture plan."
-```
+Confirmation prompt:
+- `Do these routes/views and section groups look correct?`
+- Choices:
+  - `Looks good (Recommended)` — Continue to preparation.
+  - `I want changes` — Pause and adjust the capture plan.
 
 ### Step 2: Preparation plus capture-id generation
 
@@ -254,8 +235,8 @@ Return only:
 ]
 ```
 
-After `--prepare` and Factory both complete, use the structured question tool
-to confirm that all views are open and visually ready before firing captures.
+After `--prepare` and Factory both complete, confirm that all views are open and
+visually ready before firing captures.
 
 ### Step 3: Capture - fire and poll in parallel
 
@@ -407,11 +388,13 @@ for (const container of groupContainers) {
 
 ## Notes
 
-- Every explicit user choice in this workflow should use Codex's structured
-  question UI, not plain terminal text.
+- For explicit user choices, prefer host-native structured choice UI. If it is
+  unavailable, use concise plain-text questions with the same options.
+- Actively use user-question tools (for example, `AskUserQuestion`) at decision
+  points such as target file selection, viewport selection, and capture-plan confirmation.
 - Keep generated `capture-views.mjs` in the target project, not in the skill
   repo.
 - Do not duplicate long procedural content from the reference files into this
   document.
 - For git commits in downstream repos, prefer the user's GitHub `noreply`
-  email; do not assume a Codex- or OpenAI-specific `noreply` address exists.
+  email; do not assume any vendor-specific `noreply` address exists.
