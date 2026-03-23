@@ -171,7 +171,7 @@ if (args['start-browser']) {
 const appUrl = (args['app-url'] || 'http://localhost:3000').replace(/\/$/, '');
 const appOrigin = new URL(appUrl).origin;
 const hostname = new URL(appUrl).hostname;
-const isLocal = /^(localhost|127\.|0\.0\.0\.0|\[::1\]|.*\.local)$/.test(hostname);
+const isLocal = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\]|.*\.local)$/.test(hostname);
 const [width, height] = (args.viewport || '1440x900').split('x').map(Number);
 
 const routePaths = (args.routes || '/')
