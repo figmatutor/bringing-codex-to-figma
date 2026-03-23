@@ -6,7 +6,7 @@ Use this reference when the app has no URL router and screens are driven by UI s
 
 | | URL-routed | State-driven SPA |
 |---|---|---|
-| `--routes` values | URL paths like `/about` | VIEWS keys like `settings-profile` |
+| `--routes` values | URL paths like `/about` | view keys like `settings-profile` |
 | Tab navigation | `appUrl + path` | all tabs start at `appUrl` |
 | `--views-file` | not needed | required |
 
@@ -31,16 +31,37 @@ Guidelines:
 - `null` means the default app state already matches the target view.
 - Async functions receive a Playwright `page` already loaded at `appUrl`.
 - Use deterministic selectors and short waits to let transitions settle.
-- `label-*` entries are not defined in `VIEWS`; `capture.mjs` handles them separately.
+- Keep one view key per capture target.
 
-## Step 2: Prepare tabs
+## Step 2: Build grouping metadata
+
+Before running capture:
+
+1. Define logical groups for the discovered view keys.
+2. Define `expectedFrameCounts` per key (default `1`).
+
+Example:
+
+```json
+{
+  "groups": [
+    { "name": "main", "views": ["home"] },
+    { "name": "settings", "views": ["settings-profile"] }
+  ],
+  "expectedFrameCounts": {
+    "home": 1,
+    "settings-profile": 1
+  }
+}
+```
+
+## Step 3: Prepare tabs
 
 Run:
 
 ```bash
 node {SKILL_DIR}/scripts/capture.mjs --prepare \
   --routes "home,settings-profile" \
-  --labels "label-home:Home|home" \
   --app-url http://localhost:5173 \
   --viewport 1440x900 \
   --views-file ./capture-views.mjs

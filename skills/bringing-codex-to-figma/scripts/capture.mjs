@@ -10,7 +10,7 @@
  *   and let step 2's --prepare connect to this browser automatically.
  *
  * --prepare
- *   If .capture-browser.json exists, connect to that browser, open all route/label tabs, and exit.
+ *   If .capture-browser.json exists, connect to that browser, open all route/view tabs, and exit.
  *   Otherwise launch a fresh browser, handle authentication inline, and keep the browser open.
  *
  * --dry-run
@@ -20,7 +20,6 @@
  *
  * Parameters:
  *   --routes     Comma-separated URL paths or VIEWS keys
- *   --labels     Comma-separated label specs: "name:Title|/path"
  *   --app-url    Base app URL
  *   --viewport   Viewport size in WxH format
  *   --views-file Optional capture-views.mjs path for SPAs
@@ -65,7 +64,6 @@ if (!args.prepare && !args['start-browser']) {
     '  node capture.mjs --start-browser --app-url <url> [--viewport WxH] [--dry-run]\n' +
     '  node capture.mjs --prepare \\\n' +
     '    --routes "/,/about" \\\n' +
-    '    --labels "label-main:Main|/,label-admin:Admin|/dashboard" \\\n' +
     '    --app-url <url> [--viewport WxH] [--views-file path] [--dry-run]'
   );
   process.exit(1);
@@ -88,26 +86,25 @@ function loadChromium() {
 }
 
 function findFreePort(startPort) {
+  if (!Number.isInteger(startPort) || startPort < 0 || startPort > 65535) {
+    return Promise.reject(new Error(`Invalid start port: ${startPort}`));
+  }
+
   return new Promise((resolvePort, reject) => {
     const server = net.createServer();
     server.unref();
-    server.on('error', () => findFreePort(startPort + 1).then(resolvePort, reject));
+    server.on('error', (error) => {
+      if (startPort >= 65535) {
+        reject(new Error(`No free TCP port found from ${startPort} upward: ${error.message}`));
+        return;
+      }
+      findFreePort(startPort + 1).then(resolvePort, reject);
+    });
     server.listen(startPort, () => {
       const { port } = server.address();
       server.close(() => resolvePort(port));
     });
   });
-}
-
-function labelHtml(title) {
-  return `
-    <div style="position:fixed;inset:0;z-index:99999;background:#F3F4F6;
-      display:flex;align-items:center;justify-content:center;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-      <div style="text-align:center">
-        <h1 style="font-size:52px;font-weight:700;color:#111827;margin:0 0 14px;">${title}</h1>
-      </div>
-    </div>`;
 }
 
 if (args['start-browser']) {
@@ -182,56 +179,32 @@ const routePaths = (args.routes || '/')
   .map((r) => r.trim())
   .filter(Boolean);
 
-const labelMap = new Map();
-if (args.labels) {
-  for (const entry of args.labels.split(',')) {
-    const pipeIdx = entry.indexOf('|');
-    const colonIdx = entry.indexOf(':');
-    if (colonIdx !== -1 && pipeIdx !== -1) {
-      const name = entry.slice(0, colonIdx).trim();
-      const title = entry.slice(colonIdx + 1, pipeIdx).trim();
-      const path = entry.slice(pipeIdx + 1).trim() || '/';
-      labelMap.set(name, { name, title, path });
-    }
-  }
-}
-
-const allViews = [];
-for (const routePath of routePaths) {
-  const routeUrl = routePath.startsWith('/') ? `${appUrl}${routePath}` : appUrl;
-
-  for (const [lname, label] of labelMap) {
-    if (label.path === routePath && !allViews.find((v) => v.name === lname)) {
-      allViews.push({
-        type: 'label',
-        name: lname,
-        title: label.title,
-        url: routeUrl,
-      });
-    }
-  }
-
-  allViews.push({ type: 'route', name: routePath, url: routeUrl });
-}
+const allViews = routePaths.map((routePath) => ({
+  type: routePath.startsWith('/') ? 'route' : 'view',
+  name: routePath,
+  url: routePath.startsWith('/') ? `${appUrl}${routePath}` : appUrl,
+}));
 
 if (allViews.length === 0) {
-  console.error('No views to prepare. Check --routes / --labels.');
+  console.error('No views to prepare. Check --routes.');
   process.exit(1);
 }
 
 if (isDryRun) {
-  const labelCount = allViews.filter((v) => v.type === 'label').length;
   const routeCount = allViews.filter((v) => v.type === 'route').length;
+  const stateViewCount = allViews.length - routeCount;
 
   console.log('[dry-run] --prepare');
   console.log(`[dry-run]   mode:     ${isLocal ? 'LOCAL' : 'EXTERNAL'}`);
   console.log(`[dry-run]   app-url:  ${appUrl}`);
   console.log(`[dry-run]   viewport: ${width}x${height}`);
-  console.log(`[dry-run]   tabs:     ${allViews.length} total (${labelCount} labels, ${routeCount} routes)`);
+  console.log(
+    `[dry-run]   tabs:     ${allViews.length} total (${routeCount} routes, ${stateViewCount} state views)`
+  );
   console.log('');
   console.log('[dry-run] Tab plan:');
   for (const view of allViews) {
-    const prefix = view.type === 'label' ? '[label]' : '[route]';
+    const prefix = view.type === 'route' ? '[route]' : '[view]';
     console.log(`  ${prefix} ${view.name} → ${view.url}`);
   }
 
@@ -246,7 +219,7 @@ if (isDryRun) {
       viewName: view.name,
       type: view.type,
       url: view.url,
-      title: view.type === 'label' ? view.title : view.name,
+      title: view.name,
       targetId: null,
     })),
   };
@@ -360,15 +333,11 @@ const pages = await Promise.all(allViews.map(async (view) => {
     } catch (_) {}
   }
 
-  if (view.type === 'label') {
-    await page.evaluate((html) => {
-      document.body.insertAdjacentHTML('beforeend', html);
-    }, labelHtml(view.title));
-  } else if (viewsNavigate[view.name]) {
+  if (viewsNavigate[view.name]) {
     await viewsNavigate[view.name](page);
   }
 
-  const tabName = view.type === 'label' ? view.title : view.name;
+  const tabName = view.name;
   await page.evaluate((name) => { document.title = name; }, tabName);
 
   let targetId = null;
@@ -432,7 +401,7 @@ const sessionData = {
     viewName: view.name,
     type: view.type,
     url: view.url,
-    title: view.type === 'label' ? view.title : view.name,
+    title: view.name,
     targetId: targetId ?? null,
   })),
 };

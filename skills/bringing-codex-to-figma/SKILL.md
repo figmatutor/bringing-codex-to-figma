@@ -10,13 +10,13 @@ description: |
 license: MIT
 metadata:
   author: JooHyung Park <dusskapark@gmail.com>
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # bringing-codex-to-figma
 
-Automates `generate_figma_design` plus raw CDP capture across all app routes,
-then inserts `label-*` screens as visual dividers in Figma.
+Automates `generate_figma_design` plus raw CDP capture across app routes/views,
+then groups imported frames into section containers in Figma.
 
 > Use this skill explicitly as `$bringing-codex-to-figma`.
 
@@ -32,6 +32,7 @@ Prerequisites:
 
 - Playwright should be installed in the target project with `npm install playwright`.
 - The Figma MCP server must be configured and reachable from Codex.
+- `figma-use` skill must be loaded before any `use_figma` call in Step 5.
 
 ## Mode switch: dry-run
 
@@ -100,7 +101,7 @@ Normalization rules:
 ### Sub-Agent: Scout - Route and view discovery
 
 Scan the project to enumerate every navigable route or state-driven SPA view.
-Plan any `label-*` divider screens before capture.
+Build a grouping plan for post-capture section containers.
 
 Read [references/route-detection.md](references/route-detection.md)
 for framework-specific detection rules.
@@ -111,6 +112,7 @@ Rules:
 - For state-driven SPAs, look for an existing `capture-views.mjs`. If none
   exists, generate one in the target project only when required.
 - Substitute dynamic routes with concrete sample values before capture.
+- Build `groups` plus `expectedFrameCounts` for each discovered route/view.
 - For LOCAL apps (`localhost`, `127.x`, `0.0.0.0`, `*.local`), verify that
   `capture.js` is already present in the served HTML. If it is missing, add:
 
@@ -126,7 +128,13 @@ Return only:
 ```json
 {
   "routes": ["...", "..."],
-  "labels": ["label-main:Main|/", "..."],
+  "groups": [
+    { "name": "main", "views": ["/", "/pricing"] }
+  ],
+  "expectedFrameCounts": {
+    "/": 1,
+    "/pricing": 1
+  },
   "captureJsAdded": false,
   "viewsFile": "./capture-views.mjs"
 }
@@ -183,15 +191,14 @@ Return only:
   is reachable.
 - If Scout added `capture.js` and Engineer found an already-running local app,
   restart the app server before moving on.
-- Show the discovered routes, labels, and SPA view keys, then confirm them with
-  the structured question tool before capture starts.
+- Show discovered routes/views plus grouping plan and confirm before capture starts.
 
 Example confirmation:
 
 ```yaml
 AskUserQuestion:
-  question: "Do these routes and divider screens look correct?"
-  header: "Route check"
+  question: "Do these routes/views and section groups look correct?"
+  header: "Capture plan"
   options:
     - label: "Looks good (Recommended)"
       description: "Continue to preparation."
@@ -211,7 +218,6 @@ Always run `--prepare` from the target project:
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --prepare \
   --routes "/,/about,/dashboard" \
-  --labels "label-main:Main|/,label-admin:Admin|/dashboard" \
   --app-url <url> \
   --viewport <WxH> \
   [--views-file ./capture-views.mjs]
@@ -249,7 +255,7 @@ Return only:
 ```
 
 After `--prepare` and Factory both complete, use the structured question tool
-to confirm that all tabs are open and visually ready before firing captures.
+to confirm that all views are open and visually ready before firing captures.
 
 ### Step 3: Capture - fire and poll in parallel
 
@@ -259,7 +265,7 @@ to confirm that all tabs are open and visually ready before firing captures.
 ### Sub-Agent: Trigger - Sequential fire
 
 Fire `captureForDesign` left to right, exactly once per prepared tab.
-This order controls the left-to-right frame order in Figma.
+This order controls left-to-right frame order in Figma.
 
 Read [references/cdp-architecture.md](references/cdp-architecture.md)
 for the raw CDP rationale and why `awaitPromise: false` is required.
@@ -270,7 +276,7 @@ Always run from the target project:
 cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> <captureId> <endpoint>
 ```
 
-Return only after every prepared tab has been fired.
+Return only after every prepared view has been fired.
 
 ### Sub-Agent: Collector - Parallel poll and close
 
@@ -279,7 +285,7 @@ Poll every outstanding `captureId` in parallel with `generate_figma_design`.
 Loop:
 
 1. Poll every pending capture ID in the same turn.
-2. For each completed capture, read the returned `node-id`.
+2. For each completed capture, read the returned `node-id` (if present).
 3. Convert `123-456` to `123:456`.
 4. Close only that tab:
 
@@ -294,9 +300,12 @@ Return only:
 ```json
 {
   "/": "123:456",
-  "label-main": "123:789"
+  "/dashboard": "123:789"
 }
 ```
+
+`node-id` can be missing in some direct `capture.mjs` flows. Do not fail on
+missing values.
 
 ### Step 4: Browser cleanup
 
@@ -306,10 +315,82 @@ After all captures complete, close the CDP browser:
 kill $(lsof -t -i :<cdpPort>) 2>/dev/null || fuser -k <cdpPort>/tcp 2>/dev/null || true
 ```
 
-### Step 5: Section grouping
+### Step 5: Section grouping in Figma
 
-`label-*` views create full-screen divider captures. No extra grouping tool is
-needed after import.
+Use `use_figma` to group captured frames under section containers.
+`nodeId` mappings are optional.
+
+Input model:
+
+```json
+{
+  "views": [
+    { "viewName": "/", "group": "main", "expectedFrameCount": 1 }
+  ],
+  "groups": [
+    { "name": "main", "views": ["/"] }
+  ],
+  "nodeIdMap": {
+    "/": "123:456"
+  }
+}
+```
+
+Rules:
+
+1. Build target frame assignments using `nodeIdMap` first.
+2. For unresolved views, match frames by left-to-right capture order and
+   `expectedFrameCount`.
+3. Create or reuse group containers (Section preferred, Frame fallback).
+4. Rename each moved frame to `viewName` (dedupe with suffix if needed).
+5. On mismatch, do partial grouping and move leftovers to `Unassigned`.
+6. Always emit warnings with expected vs observed counts.
+7. After moving frames into each group container, resize the container to fit
+   contents. In current MCP runtimes, Section exposes
+   `resizeWithoutConstraints(width, height)` (not `resizeToFitContents()`), so
+   compute child bounds and resize explicitly.
+
+Resize pattern:
+
+```js
+for (const container of groupContainers) {
+  if (container.type === 'SECTION') {
+    const children = container.children;
+    if (children.length === 0) continue;
+
+    const pad = 24;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const child of children) {
+      minX = Math.min(minX, child.x);
+      minY = Math.min(minY, child.y);
+      maxX = Math.max(maxX, child.x + child.width);
+      maxY = Math.max(maxY, child.y + child.height);
+    }
+
+    // Normalize children so the section has visible padding.
+    const dx = minX < pad ? pad - minX : 0;
+    const dy = minY < pad ? pad - minY : 0;
+    if (dx !== 0 || dy !== 0) {
+      for (const child of children) {
+        child.x += dx;
+        child.y += dy;
+      }
+      maxX += dx;
+      maxY += dy;
+    }
+
+    container.resizeWithoutConstraints(maxX + pad, maxY + pad);
+  } else if (container.type === 'FRAME') {
+    container.layoutMode = container.layoutMode === 'NONE' ? 'VERTICAL' : container.layoutMode;
+    container.layoutSizingHorizontal = 'HUG';
+    container.layoutSizingVertical = 'HUG';
+  }
+}
+```
 
 ## References
 

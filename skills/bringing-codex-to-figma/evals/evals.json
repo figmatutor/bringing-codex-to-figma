@@ -5,8 +5,8 @@
     "before executing the evals. {SKILL_DIR} = skill base directory.",
     "",
     "All evals use --dry-run so no browser or Figma connection is required.",
-    "They validate route detection, prepare command construction, and",
-    ".capture-session.json output."
+    "They validate route/view detection, prepare command construction, and",
+    ".capture-session.json output for route/view-only tabs (no label tabs)."
   ],
   "evals": [
     {
@@ -34,7 +34,8 @@
         "Scout scans src/app/ and finds /, /blog, and /blog/[slug]",
         "The dynamic segment is substituted with a concrete sample value",
         "capture.mjs --prepare --dry-run is called with the discovered routes",
-        ".capture-session.json is written with dryRun: true and isLocal: true"
+        ".capture-session.json is written with dryRun: true and isLocal: true",
+        "tabs entries are route/view-only (no label divider entries)"
       ],
       "assertions": [
         {
@@ -92,7 +93,8 @@
       "expected_behavior": [
         "The project is identified as a state-driven SPA",
         "capture.mjs --prepare --dry-run --views-file ./capture-views.mjs is called",
-        ".capture-session.json is written with non-URL view names"
+        ".capture-session.json is written with non-URL view names",
+        "tabs entries are route/view-only (no label divider entries)"
       ],
       "assertions": [
         {

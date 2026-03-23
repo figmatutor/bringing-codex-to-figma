@@ -1,8 +1,8 @@
 # Route Detection Guide
 
-Use this reference to identify the app's framework, enumerate routes or views, and
-plan `label-*` divider tabs. Try each strategy in order and stop at the first strong
-match.
+Use this reference to identify the app framework, enumerate routes or views, and
+produce a grouping plan for post-capture section organization.
+Try each strategy in order and stop at the first strong match.
 
 ## LOCAL vs EXTERNAL
 
@@ -14,17 +14,32 @@ match.
 LOCAL apps can be patched locally if `capture.js` is missing.
 EXTERNAL apps must already expose the required capture script.
 
-## Label Tab Plan
+## Grouping Plan
 
-Plan divider labels before building the `--routes` and `--labels` arguments.
-Insert one `label-*` view before each logical route group.
+Build these outputs before capture:
+
+- `routes`: ordered list used by `capture.mjs --prepare --routes`.
+- `groups`: logical sections for Figma grouping after capture.
+- `expectedFrameCounts`: per-route/view expected frame count (default `1`).
 
 Example:
 
-```text
-label-main    before  /
-label-auth    before  /login, /register
-label-admin   before  /dashboard, /settings
+```json
+{
+  "routes": ["/", "/login", "/register", "/dashboard", "/settings"],
+  "groups": [
+    { "name": "main", "views": ["/"] },
+    { "name": "auth", "views": ["/login", "/register"] },
+    { "name": "admin", "views": ["/dashboard", "/settings"] }
+  ],
+  "expectedFrameCounts": {
+    "/": 1,
+    "/login": 1,
+    "/register": 1,
+    "/dashboard": 1,
+    "/settings": 1
+  }
+}
 ```
 
 ## Strategy 1: Next.js App Router
@@ -75,8 +90,8 @@ Search order:
 3. `src/App.tsx`
 4. any file containing router creation
 
-Resolve nested routes by concatenating parent and child paths. Substitute `:param`
-with representative values like `1`.
+Resolve nested routes by concatenating parent and child paths.
+Substitute `:param` with representative values like `1`.
 
 ## Strategy 4: Vue Router
 
@@ -100,9 +115,10 @@ Filter to path-like values starting with `/`.
 If no URL router exists:
 
 1. Inspect the root component, usually `App.tsx` or `App.jsx`
-2. Find `useState` or similar state that determines which screen is rendered
-3. Enumerate each distinct state value
+2. Find state that determines which screen is rendered
+3. Enumerate each distinct state value and use those as route keys
 4. Generate `capture-views.mjs` with deterministic Playwright navigation steps
+5. Set `expectedFrameCounts` for each key (default `1`)
 
 For SPA capture details and the `capture-views.mjs` structure, read
 [spa-capture.md](spa-capture.md).
