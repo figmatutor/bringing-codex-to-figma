@@ -8,6 +8,12 @@ if [ "${1:-}" = "" ]; then
 fi
 
 SKILL_NAME="$1"
+if ! [[ "${SKILL_NAME}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Error: invalid <skill-name> '${SKILL_NAME}'"
+  echo "Use lowercase letters, numbers, and hyphens only (example: figma-my-skill)."
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 SKILL_DIR="${SKILLS_DIR}/${SKILL_NAME}"
