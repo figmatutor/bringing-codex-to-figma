@@ -150,10 +150,10 @@ async function setTextContent(params) {
 // Main function: setMultipleTextContents
 async function setMultipleTextContents(params) {
   const { nodeId, text } = params || {};
-  const commandId = params.commandId || generateCommandId();
+  const commandId = params?.commandId || generateCommandId();
 
-  if (!nodeId || !text || !Array.isArray(text)) {
-    const errorMsg = "Missing required parameters: nodeId and text array";
+  if (!text || !Array.isArray(text)) {
+    const errorMsg = "Missing required parameter: text array";
 
     // Send an error progress update
     await sendProgressUpdate(
@@ -170,9 +170,12 @@ async function setMultipleTextContents(params) {
     throw new Error(errorMsg);
   }
 
-  console.log(
-    `Starting text replacement for node: ${nodeId} with ${text.length} text replacements`
-  );
+  if (nodeId !== undefined && typeof nodeId !== "string") {
+    throw new Error("Invalid optional parameter: nodeId must be a string when provided");
+  }
+
+  const scopeMsg = nodeId ? ` within context node ${nodeId}` : "";
+  console.log(`Starting text replacement${scopeMsg} with ${text.length} text replacements`);
 
   // Send the started progress update
   await sendProgressUpdate(
@@ -183,7 +186,7 @@ async function setMultipleTextContents(params) {
     text.length,
     0,
     `Starting text replacement for ${text.length} nodes`,
-    { totalReplacements: text.length }
+    { totalReplacements: text.length, contextNodeId: nodeId ?? null }
   );
 
   // Prepare the result array and counters
@@ -405,7 +408,7 @@ async function setMultipleTextContents(params) {
 
   return {
     success: failureCount === 0,
-    nodeId: nodeId,
+    nodeId: nodeId ?? null,
     replacementsApplied: successCount,
     replacementsFailed: failureCount,
     totalReplacements: text.length,

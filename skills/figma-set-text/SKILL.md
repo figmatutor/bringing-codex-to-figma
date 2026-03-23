@@ -19,7 +19,7 @@ Pass an object to `setMultipleTextContents(params)`:
 
 | Parameter | Type | Required | Description |
 |---------|------|------|------|
-| `nodeId` | string | yes | Root node ID for the working context, usually the same root used during scanning |
+| `nodeId` | string | no | Optional context/root node ID for logging or run correlation. Target resolution is based on each `text[].nodeId` |
 | `text` | array | yes | Replacement list in the form `[{ nodeId, text }, ...]` |
 | `commandId` | string | no | Correlation ID for tracking the run. Auto-generated when omitted |
 
@@ -37,7 +37,7 @@ Pass an object to `setMultipleTextContents(params)`:
 ```javascript
 {
   success: true,
-  nodeId: "0:1",
+  nodeId: null, // or the provided optional context nodeId
   replacementsApplied: 8,
   replacementsFailed: 1,
   totalReplacements: 9,
@@ -58,7 +58,6 @@ Pass an object to `setMultipleTextContents(params)`:
 (async () => {
   try {
     const result = await setMultipleTextContents({
-      nodeId: "0:1",
       text: [
         { nodeId: "123:456", text: "Home" },
         { nodeId: "789:012", text: "About" },
@@ -85,7 +84,6 @@ Pass an object to `setMultipleTextContents(params)`:
     ];
 
     const result = await setMultipleTextContents({
-      nodeId: "0:1",
       text: replacements,
     });
     figma.closePlugin(JSON.stringify(result));
