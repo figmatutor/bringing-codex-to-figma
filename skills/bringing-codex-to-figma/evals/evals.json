@@ -44,6 +44,11 @@
           "description": "capture.mjs --prepare must be called with --dry-run"
         },
         {
+          "name": "--labels flag not used",
+          "type": "command_flag",
+          "description": "capture.mjs --prepare must NOT include --labels"
+        },
+        {
           "name": ".capture-session.json written",
           "type": "file_exists",
           "description": "File written in the project directory"
@@ -67,6 +72,11 @@
           "name": "dynamic route substituted",
           "type": "json_array_item",
           "description": "tabs includes a concrete path for /blog/[slug]"
+        },
+        {
+          "name": "no label tab type",
+          "type": "json_field",
+          "description": "No tabs entry should have type: label"
         }
       ]
     },
@@ -103,6 +113,11 @@
           "description": "capture.mjs --prepare must be called with --dry-run"
         },
         {
+          "name": "--labels flag not used",
+          "type": "command_flag",
+          "description": "capture.mjs --prepare must NOT include --labels"
+        },
+        {
           "name": "--views-file flag used",
           "type": "command_flag",
           "description": "--views-file ./capture-views.mjs must be included"
@@ -121,6 +136,11 @@
           "name": "tabs have non-URL view names",
           "type": "json_array_item",
           "description": "viewName values are SPA keys such as home, counter, about"
+        },
+        {
+          "name": "no label tab type",
+          "type": "json_field",
+          "description": "No tabs entry should have type: label"
         }
       ]
     }
