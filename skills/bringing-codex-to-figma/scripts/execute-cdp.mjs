@@ -66,34 +66,85 @@ if (!target) {
 
 console.log(`[cdp] Found tab: "${viewName}" (${target.id})`);
 
-async function cdpSession(wsUrl, commands) {
+async function cdpSession(wsUrl, commands, timeoutMs = 15_000) {
   return new Promise((resolveResult, reject) => {
     const ws = new WebSocket(wsUrl);
-    const pending = new Map();
+    const pending = new Set();
     let msgId = 1;
     const results = [];
+    let settled = false;
+    let timeoutHandle = null;
 
-    ws.addEventListener('open', async () => {
+    function finishOk(value) {
+      if (settled) return;
+      settled = true;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      resolveResult(value);
+    }
+
+    function finishErr(error) {
+      if (settled) return;
+      settled = true;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      reject(error);
+    }
+
+    ws.addEventListener('open', () => {
+      if (!Array.isArray(commands) || commands.length === 0) {
+        ws.close();
+        return;
+      }
+
       for (const cmd of commands) {
         const id = msgId++;
-        pending.set(id, null);
+        pending.add(id);
         ws.send(JSON.stringify({ id, ...cmd }));
       }
+
+      timeoutHandle = setTimeout(() => {
+        const unresolved = [...pending].join(', ');
+        ws.close();
+        finishErr(
+          new Error(
+            `CDP response timeout after ${timeoutMs}ms` +
+            (unresolved ? ` (pending ids: ${unresolved})` : '')
+          )
+        );
+      }, timeoutMs);
     });
 
     ws.addEventListener('message', (evt) => {
-      const msg = JSON.parse(evt.data);
+      let msg;
+      try {
+        msg = JSON.parse(evt.data);
+      } catch (error) {
+        finishErr(new Error(`Invalid CDP JSON message: ${error.message}`));
+        return;
+      }
+
       if (msg.id && pending.has(msg.id)) {
         pending.delete(msg.id);
         results.push(msg);
         if (pending.size === 0) {
           ws.close();
+          finishOk(results);
         }
       }
     });
 
-    ws.addEventListener('close', () => resolveResult(results));
-    ws.addEventListener('error', (e) => reject(new Error(String(e.message || e))));
+    ws.addEventListener('close', () => {
+      if (settled) return;
+      if (pending.size > 0) {
+        const unresolved = [...pending].join(', ');
+        finishErr(new Error(`CDP socket closed before all responses arrived (pending ids: ${unresolved})`));
+        return;
+      }
+      finishOk(results);
+    });
+
+    ws.addEventListener('error', (e) => {
+      finishErr(new Error(String(e.message || e)));
+    });
   });
 }
 
@@ -114,6 +165,11 @@ if (!closeOnly) {
   }
 
   const evalResult = results[0];
+  if (!evalResult) {
+    console.error('✗ Runtime.evaluate did not return a response.');
+    process.exit(1);
+  }
+
   if (evalResult?.error) {
     console.error('✗ Runtime.evaluate error:', JSON.stringify(evalResult.error));
     process.exit(1);
