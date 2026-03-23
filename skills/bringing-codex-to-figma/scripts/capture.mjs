@@ -340,6 +340,50 @@ if (hasHandover) {
   context = await browser.newContext({ ignoreHTTPSErrors: true });
 }
 
+async function listOpenPageTargets() {
+  try {
+    const res = await fetch(`http://localhost:${cdpPort}/json`);
+    const targets = await res.json();
+    return targets.filter((t) => t.type === 'page');
+  } catch (_) {
+    return [];
+  }
+}
+
+async function closeTargetsByIds(ids, reason = '') {
+  const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+  if (uniqueIds.length === 0) return;
+  if (reason) {
+    console.log(`[prepare] Closing ${uniqueIds.length} tab(s): ${reason}`);
+  }
+  await Promise.all(uniqueIds.map((id) =>
+    fetch(`http://localhost:${cdpPort}/json/close/${id}`).catch(() => {})
+  ));
+}
+
+async function closeTargetsByTitles(titles, reason = '') {
+  const wanted = new Set((titles || []).filter(Boolean));
+  if (wanted.size === 0) return;
+  const targets = await listOpenPageTargets();
+  const ids = targets.filter((t) => wanted.has(t.title)).map((t) => t.id);
+  await closeTargetsByIds(ids, reason);
+}
+
+async function failPrepareAttempt(message, error) {
+  const detail = error?.message ? `: ${error.message}` : '';
+  console.error(`✗ ${message}${detail}`);
+  await closeTargetsByTitles(
+    allViews.map((v) => v.name),
+    'cleanup after failed prepare attempt'
+  );
+  if (!hasHandover && browser) {
+    try {
+      await browser.close();
+    } catch (_) {}
+  }
+  process.exit(1);
+}
+
 if (hasHandover) {
   const prevSessionFile = resolve(process.cwd(), '.capture-session.json');
   if (existsSync(prevSessionFile)) {
@@ -348,21 +392,28 @@ if (hasHandover) {
       const staleIds = (prev.tabs || []).map((t) => t.targetId).filter(Boolean);
       if (staleIds.length > 0) {
         console.log(`[prepare] Closing ${staleIds.length} stale tab(s) from previous session...`);
-        await Promise.all(staleIds.map((id) =>
-          fetch(`http://localhost:${cdpPort}/json/close/${id}`).catch(() => {})
-        ));
+        await closeTargetsByIds(staleIds);
       }
     } catch (_) {}
   }
+  await closeTargetsByTitles(
+    allViews.map((v) => v.name),
+    'pre-prepare dedupe by planned view titles'
+  );
 }
 
 if (!isLocal) {
   await context.route('**/*', async (route) => {
-    const response = await route.fetch();
-    const headers = { ...response.headers() };
-    delete headers['content-security-policy'];
-    delete headers['content-security-policy-report-only'];
-    await route.fulfill({ response, headers });
+    try {
+      const response = await route.fetch();
+      const headers = { ...response.headers() };
+      delete headers['content-security-policy'];
+      delete headers['content-security-policy-report-only'];
+      await route.fulfill({ response, headers });
+    } catch (_) {
+      // Large/slow assets can time out on proxy fetch; continue without CSP stripping.
+      await route.continue();
+    }
   });
 }
 
@@ -387,10 +438,11 @@ if (!hasHandover) {
 
 console.log(`[prepare] Opening ${allViews.length} tabs...`);
 
-const pages = await Promise.all(allViews.map(async (view) => {
+const pageResults = await Promise.allSettled(allViews.map(async (view) => {
   const page = await context.newPage();
   await page.setViewportSize({ width, height });
-  await page.goto(view.url, { waitUntil: isLocal ? 'domcontentloaded' : 'load' });
+  // External pages often keep requests open; waiting for full "load" can hang.
+  await page.goto(view.url, { waitUntil: 'domcontentloaded' });
   if (!isLocal) {
     try {
       await page.waitForLoadState('networkidle', { timeout: 15_000 });
@@ -425,30 +477,48 @@ const pages = await Promise.all(allViews.map(async (view) => {
   return { view, page, targetId };
 }));
 
+const failedTabs = [];
+const pages = [];
+for (let i = 0; i < pageResults.length; i++) {
+  const result = pageResults[i];
+  if (result.status === 'fulfilled') {
+    pages.push(result.value);
+  } else {
+    const viewName = allViews[i]?.name ?? `index-${i}`;
+    const reason = result.reason?.message || String(result.reason || 'unknown error');
+    failedTabs.push(`${viewName} (${reason})`);
+  }
+}
+
+if (failedTabs.length > 0) {
+  await failPrepareAttempt(
+    'prepare failed while opening one or more tabs',
+    new Error(failedTabs.join('; '))
+  );
+}
+
 console.log(`[prepare] ${pages.length} tabs opened.`);
 
 if (!isLocal) {
   console.log('[prepare] Fetching capture.js for EXTERNAL inject...');
-  let captureJs;
   try {
+    let captureJs;
     const r = await context.request.get(
       'https://mcp.figma.com/mcp/html-to-design/capture.js'
     );
     captureJs = await r.text();
-  } catch (e) {
-    console.error('✗ Failed to fetch capture.js:', e.message);
-    await browser.close();
-    process.exit(1);
-  }
 
-  for (const { view, page } of pages) {
-    await page.evaluate((script) => {
-      const el = document.createElement('script');
-      el.textContent = script;
-      document.head.appendChild(el);
-    }, captureJs);
-    await page.waitForTimeout(300);
-    console.log(`[inject] capture.js → ${view.name}`);
+    for (const { view, page } of pages) {
+      await page.evaluate((script) => {
+        const el = document.createElement('script');
+        el.textContent = script;
+        document.head.appendChild(el);
+      }, captureJs);
+      await page.waitForTimeout(300);
+      console.log(`[inject] capture.js → ${view.name}`);
+    }
+  } catch (e) {
+    await failPrepareAttempt('external capture.js injection failed', e);
   }
   console.log('[prepare] capture.js injected into all tabs.');
 } else {
