@@ -142,6 +142,10 @@ async function scanNodes(params) {
     throw new Error("Missing required parameter: nodeId");
   }
 
+  if (useChunking && (!Number.isInteger(chunkSize) || chunkSize <= 0)) {
+    throw new Error("Invalid chunkSize: must be a positive integer when useChunking is true");
+  }
+
   const filterByType = types.length > 0;
   const commandType = "scan_nodes";
 
