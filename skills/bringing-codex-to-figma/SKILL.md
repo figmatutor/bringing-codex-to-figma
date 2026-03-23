@@ -2,8 +2,9 @@
 name: bringing-codex-to-figma
 description: |
   Automatically captures and exports app routes or state-driven views to Figma,
-  using host-supported pre-flight input and parallel Scout,
-  Engineer, Factory, Trigger, and Collector workstreams. Use when the user
+  using host-supported pre-flight input and parallel RoutePlanner,
+  RuntimeOperator, CaptureIdProducer, CaptureExecutor, and UploadMonitor
+  workstreams. Use when the user
   wants to capture an entire app to Figma, document every route, handle
   auth-required flows, or batch-capture a multi-screen SPA. Requires the
   Figma MCP server.
@@ -23,10 +24,12 @@ then groups imported frames into section containers in Figma.
 > **`{SKILL_DIR}`** is the installed skill directory. Resolve script and reference
 > paths relative to it.
 
-> Parallel work is mandatory in this skill. Use sub-agents when the runtime
-> supports them. Otherwise emulate the same split with the host runtime's parallel tool
-> runner. Do not collapse Scout/Engineer, Factory/prepare overlap, or
-> Trigger/Collector into one serialized flow unless a blocker forces it.
+> Parallel work is mandatory in this skill. Use sub-agents in runtimes that
+> support them (for example Codex, Cursor, and Claude Code). If sub-agents are
+> unavailable in the active runtime, emulate the same split with the host
+> runtime's parallel tool runner. Do not collapse RoutePlanner/RuntimeOperator,
+> CaptureIdProducer/prepare overlap, or CaptureExecutor/UploadMonitor into one
+> serialized flow unless a blocker forces it.
 
 Prerequisites:
 
@@ -45,6 +48,16 @@ If the user explicitly says `--dry-run`, "validation run", "test only", or
 - Finish after validating the route/view plan and the generated
   `.capture-session.json`.
 
+## Parallel Execution Contract
+
+- If the user explicitly asks for delegation, sub-agents, or parallel agent
+  execution in this turn, use sub-agents for RoutePlanner/RuntimeOperator and
+  CaptureExecutor/UploadMonitor splits.
+- Otherwise, do not force sub-agent spawning. Emulate the same split using the
+  runtime's parallel tool runner.
+- Never block the workflow waiting for sub-agent support. Parallel execution is
+  required, but the mechanism is runtime-dependent.
+
 ## Workflow
 
 ### Step 0: Structured pre-flight
@@ -52,8 +65,13 @@ If the user explicitly says `--dry-run`, "validation run", "test only", or
 Use the host platform's structured choice UI for pre-flight input when available
 (Codex, Cursor, or equivalent). If structured choices are unavailable, ask the
 same questions in concise plain text.
-When user confirmation is needed, actively use the runtime's user-question tool
-(for example, `AskUserQuestion`) instead of silently assuming defaults.
+
+Runtime mapping:
+- Use the runtime's interactive question tool when available (for example
+  `AskUserQuestion` or equivalent).
+- If structured question tools are unavailable, ask concise plain-text
+  questions and wait for an explicit answer.
+- Do not hard-code one runtime's question primitive as mandatory.
 
 If the user already supplied one or both answers, do not ask for them again.
 Ask exactly two questions total:
@@ -73,6 +91,8 @@ Ask exactly two questions total:
   - `Mobile - 375x812` — Typical phone viewport.
 
 Record both answers before doing any discovery or browser work.
+Hard gate: do not proceed to Step 1 until both answers are explicitly confirmed.
+Do not silently assume a viewport when it was not provided.
 Do not ask a third pre-flight question unless the user introduces a blocker that
 cannot be discovered from the repo.
 
@@ -84,10 +104,10 @@ Normalization rules:
 
 ### Step 1: Parallel discovery
 
-> Dispatch Scout and Engineer in one turn. Do not wait for one before starting
+> Dispatch RoutePlanner and RuntimeOperator in one turn. Do not wait for one before starting
 > the other.
 
-### Sub-Agent: Scout - Route and view discovery
+### Sub-Agent: RoutePlanner - Route and view discovery
 
 Scan the project to enumerate every navigable route or state-driven SPA view.
 Build a grouping plan for post-capture section containers.
@@ -129,7 +149,7 @@ Return only:
 }
 ```
 
-### Sub-Agent: Engineer - Dev server and browser
+### Sub-Agent: RuntimeOperator - Dev server and browser
 
 Read [references/dev-server-detection.md](references/dev-server-detection.md)
 for detection order, custom-domain failures, and port-conflict handling.
@@ -175,11 +195,14 @@ Return only:
 
 ### After both sub-agents complete
 
-- If Engineer returned `serverStatus: "failed"`, ask the user to start the
+- If RuntimeOperator returned `serverStatus: "failed"`, ask the user to start the
   server manually, then continue only once it is reachable.
-- If Scout added `capture.js` and Engineer found an already-running local app,
+- If RoutePlanner added `capture.js` and RuntimeOperator found an already-running local app,
   restart the app server before moving on.
 - Show discovered routes/views plus grouping plan and confirm before capture starts.
+
+Hard gate: do not proceed to Step 2 until the user confirms the route/view
+plan and section grouping.
 
 Confirmation prompt:
 - `Do these routes/views and section groups look correct?`
@@ -189,8 +212,9 @@ Confirmation prompt:
 
 ### Step 2: Preparation plus capture-id generation
 
-> Run `--prepare` directly, then dispatch Factory immediately in parallel. Do
-> not wait for `--prepare` to finish before starting capture-id generation.
+> Run `--prepare` directly, then dispatch CaptureIdProducer immediately in parallel when
+> the prepare attempt is stable. If `--prepare` fails in the current attempt,
+> recover prepare first, then regenerate capture IDs.
 
 ### Step 2a - Run `--prepare` directly
 
@@ -207,6 +231,12 @@ cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --prepare \
 For state-driven SPAs, add `--views-file ./capture-views.mjs` and pass VIEWS
 keys, not URL paths, in `--routes`.
 
+Before every `--prepare` run:
+
+1. Close stale tabs from the previous session using stored target IDs.
+2. Close any currently open tabs whose title matches planned `viewName`s.
+3. Ensure only one tab per planned view remains after cleanup.
+
 Read [references/spa-capture.md](references/spa-capture.md)
 when there is no URL router.
 
@@ -217,9 +247,17 @@ If `--prepare` fails with a CDP connectivity error:
 3. Wait for `.capture-browser.json` to reappear.
 4. Re-run `--prepare`.
 
-### Step 2b - Sub-Agent: Factory - Capture-id generation
+If `--prepare` fails for any other reason after opening tabs:
 
-Dispatch Factory while `--prepare` is still running, or immediately after launch.
+1. Close tabs opened in the failed attempt (by target ID or title match).
+2. Re-run `--prepare` once.
+3. If it fails again, report the blocker to the user with the failing route/view.
+
+### Step 2b - Sub-Agent: CaptureIdProducer - Capture-id generation
+
+Dispatch CaptureIdProducer while `--prepare` is running only when the current attempt is
+healthy. If prepare has failed in this attempt, rerun prepare first and then
+generate new capture IDs.
 
 - Existing Figma file -> generate one capture ID per prepared view with
   `outputMode: "existingFile"`.
@@ -235,15 +273,16 @@ Return only:
 ]
 ```
 
-After `--prepare` and Factory both complete, confirm that all views are open and
+After `--prepare` and CaptureIdProducer both complete, confirm that all views are open and
 visually ready before firing captures.
 
 ### Step 3: Capture - fire and poll in parallel
 
-> Dispatch Trigger and Collector in one turn. Trigger fires sequentially inside
-> its own workstream. Collector polls all outstanding uploads in parallel.
+> Dispatch CaptureExecutor and UploadMonitor in one turn. CaptureExecutor fires
+> sequentially inside its own workstream. UploadMonitor polls all outstanding
+> uploads in parallel.
 
-### Sub-Agent: Trigger - Sequential fire
+### Sub-Agent: CaptureExecutor - Sequential fire
 
 Fire `captureForDesign` left to right, exactly once per prepared tab.
 This order controls left-to-right frame order in Figma.
@@ -259,7 +298,7 @@ cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> <captureI
 
 Return only after every prepared view has been fired.
 
-### Sub-Agent: Collector - Parallel poll and close
+### Sub-Agent: UploadMonitor - Parallel poll and close
 
 Poll every outstanding `captureId` in parallel with `generate_figma_design`.
 
@@ -275,6 +314,11 @@ cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> --close-o
 ```
 
 5. Continue until nothing is pending.
+
+Backoff rule:
+- If a capture ID remains `processing` across repeated polls, increase delay
+  between rounds (for example 5s -> 10s -> 20s).
+- Completion order may differ from trigger order. This is normal.
 
 Return only:
 
@@ -399,8 +443,9 @@ for (const container of groupContainers) {
 
 - For explicit user choices, prefer host-native structured choice UI. If it is
   unavailable, use concise plain-text questions with the same options.
-- Actively use user-question tools (for example, `AskUserQuestion`) at decision
-  points such as target file selection, viewport selection, and capture-plan confirmation.
+- Use the runtime's available question flow for target selection, viewport
+  selection, and capture-plan confirmation. If unavailable, ask plain-text
+  questions and wait for an explicit answer before proceeding.
 - Keep generated `capture-views.mjs` in the target project, not in the skill
   repo.
 - Do not duplicate long procedural content from the reference files into this
