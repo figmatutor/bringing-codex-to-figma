@@ -23,6 +23,7 @@ Create a new Figma skill directory with the standard multi-skill repo layout. Th
    - Creates `skills/<skill-name>/agents/`, `references/`, and `scripts/`
    - Generates a `skills/<skill-name>/SKILL.md` template
    - Generates a `skills/<skill-name>/agents/openai.yaml` template
+   - Creates shared-reference symlinks in `skills/<skill-name>/references/` when `skills/figma-evaluate-script/references/` is available
 
 2. Fill in the generated `skills/<skill-name>/SKILL.md` template:
    - Update the frontmatter `name` and `description` to match the actual purpose
