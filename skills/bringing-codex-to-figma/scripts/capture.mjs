@@ -179,6 +179,65 @@ const routePaths = (args.routes || '/')
   .map((r) => r.trim())
   .filter(Boolean);
 
+const stateViewNames = routePaths.filter((routePath) => !routePath.startsWith('/'));
+const hasStateViews = stateViewNames.length > 0;
+
+let viewsNavigate = {};
+if (hasStateViews) {
+  if (!args['views-file']) {
+    console.error(
+      '✗ State-driven views were requested, but --views-file is missing. ' +
+      'Provide --views-file ./capture-views.mjs for non-route view keys.'
+    );
+    process.exit(1);
+  }
+
+  const viewsPath = resolve(process.cwd(), args['views-file']);
+  if (!existsSync(viewsPath)) {
+    console.error(`✗ --views-file not found: ${viewsPath}`);
+    process.exit(1);
+  }
+
+  const { VIEWS } = await import(pathToFileURL(viewsPath).href);
+  if (!VIEWS || typeof VIEWS !== 'object') {
+    console.error('✗ --views-file must export a VIEWS object.');
+    process.exit(1);
+  }
+  viewsNavigate = VIEWS;
+
+  const missingKeys = stateViewNames.filter((name) => !(name in viewsNavigate));
+  if (missingKeys.length > 0) {
+    console.error(
+      `✗ Missing VIEWS key(s): ${missingKeys.join(', ')}. ` +
+      `Available keys: ${Object.keys(viewsNavigate).join(', ')}`
+    );
+    process.exit(1);
+  }
+
+  const invalidKeys = stateViewNames.filter((name) => {
+    const handler = viewsNavigate[name];
+    return handler !== null && typeof handler !== 'function';
+  });
+  if (invalidKeys.length > 0) {
+    console.error(
+      `✗ Invalid VIEWS handler type for key(s): ${invalidKeys.join(', ')}. ` +
+      'Each key must be either null or an async function.'
+    );
+    process.exit(1);
+  }
+
+  console.log(`[views] Loaded navigate functions: ${Object.keys(viewsNavigate).join(', ')}`);
+} else if (args['views-file']) {
+  const viewsPath = resolve(process.cwd(), args['views-file']);
+  if (existsSync(viewsPath)) {
+    const { VIEWS } = await import(pathToFileURL(viewsPath).href);
+    viewsNavigate = VIEWS || {};
+    console.log(`[views] Loaded navigate functions: ${Object.keys(viewsNavigate).join(', ')}`);
+  } else {
+    console.warn(`[views] --views-file not found: ${viewsPath}`);
+  }
+}
+
 const allViews = routePaths.map((routePath) => ({
   type: routePath.startsWith('/') ? 'route' : 'view',
   name: routePath,
@@ -229,18 +288,6 @@ if (isDryRun) {
   console.log('');
   console.log('✓ .capture-session.json written (dry-run)');
   process.exit(0);
-}
-
-let viewsNavigate = {};
-if (args['views-file']) {
-  const viewsPath = resolve(process.cwd(), args['views-file']);
-  if (existsSync(viewsPath)) {
-    const { VIEWS } = await import(pathToFileURL(viewsPath).href);
-    viewsNavigate = VIEWS || {};
-    console.log(`[views] Loaded navigate functions: ${Object.keys(viewsNavigate).join(', ')}`);
-  } else {
-    console.warn(`[views] --views-file not found: ${viewsPath}`);
-  }
 }
 
 const browserJsonPath = resolve(process.cwd(), '.capture-browser.json');
