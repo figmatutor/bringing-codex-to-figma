@@ -1,1 +1,0 @@
-../../figma-evaluate-script/references/validation-and-recovery.md

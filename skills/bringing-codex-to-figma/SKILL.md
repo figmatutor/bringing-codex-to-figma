@@ -1,6 +1,6 @@
 ---
 name: bringing-codex-to-figma
-description: Capture all routes or SPA views from a local or deployed web app into Figma using generate_figma_design + CDP capture scripts, then group frames by section. Use when the user asks to capture an entire app/sitemap into Figma, including auth-required flows and multi-view batch capture.
+description: Route/view capture orchestration skill for moving local or deployed web app screens into Figma using generate_figma_design + CDP scripts. Use for discovery, prepare/capture coordination, and post-capture grouping; rely on figma-use for generic Figma write rules.
 license: MIT
 metadata:
   author: JooHyung Park <dusskapark@gmail.com>
@@ -28,7 +28,13 @@ and post-capture grouping in Figma.
 
 - Playwright available in target project: `npm install playwright`.
 - Figma MCP server reachable.
-- Before any `use_figma` call in Step 5, load `$figma-use` skill.
+- Before any Figma write step (including any `use_figma` usage), load `$figma-use` first and follow its generic write/validation/recovery rules.
+
+## Skill boundary (important)
+
+- This skill owns **capture orchestration**: route/view discovery, runtime/browser prep, capture execution, upload monitoring, and grouping workflow coordination.
+- This skill does **not** redefine generic Figma Plugin API write rules.
+- For any Figma write behavior (validation, recovery, safety constraints), load and follow `$figma-use` first.
 
 ## Dry-run mode
 
@@ -245,7 +251,7 @@ If PID shutdown is unavailable, ask the user to close browser manually.
 
 ### Step 5: Group sections in Figma
 
-Load `$figma-use` first, then use `use_figma` to group captured frames.
+`$figma-use` must already be loaded before this step. Use `use_figma` only after applying figma-use write/validation/recovery rules.
 
 Input model:
 

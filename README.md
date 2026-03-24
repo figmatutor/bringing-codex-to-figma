@@ -6,33 +6,35 @@ This repository contains Codex-compatible skills focused on Figma workflows.
 
 ### `bringing-codex-to-figma`
 
-Captures application routes or state-based views into Figma and organizes the
-result as screens. Intended for larger app capture workflows that need route
-discovery, browser automation, and Figma import coordination.
-
-### `figma-create-figma-skill`
-
-Scaffolds a new Figma skill inside this multi-skill repository. It creates the
-standard directory layout for skill documentation, scripts, and agent config.
+Route/view capture orchestration skill. It captures application routes or
+state-based views into Figma and organizes results as grouped screens. This
+skill is focused on discovery, runtime orchestration, and capture flow
+coordination.
 
 ### `figma-scan-nodes`
 
-Scans a Figma node tree and returns structured metadata for selected node
-types. Useful for discovery tasks such as locating text, frames, components,
-or instances before making edits.
+Thin helper skill for scanning a Figma node tree and returning structured
+metadata for selected node types. Use it primarily for discovery and node ID
+collection before edits.
 
 ### `figma-set-text`
 
-Applies batched text replacements to Figma text nodes. This skill is typically
-used after node discovery so text changes can be applied safely and
-consistently.
+Thin helper skill for batched text replacement across Figma TEXT nodes. Use it
+after node discovery and explicit text mapping.
+
+## Shared Rule Source
+
+Common Figma Plugin API execution rules, generic gotchas, and
+validation/recovery guidance are centralized in `figma-use`.
+
+- Skills in this repository should reference `../figma-use/...` for shared rules.
+- Local `references/` should contain only skill-specific domain knowledge.
 
 ## Repository Layout
 
 ```text
 skills/
   bringing-codex-to-figma/
-  figma-create-figma-skill/
   figma-scan-nodes/
   figma-set-text/
 ```
@@ -42,8 +44,8 @@ scripts, or agent configuration needed for that workflow.
 
 ## Typical Usage Flow
 
-1. Use `figma-scan-nodes` to discover the relevant nodes.
-2. Use `figma-set-text` when batch text replacement is needed.
-3. Use `bringing-codex-to-figma` when the task is capturing application views
+1. Load `figma-use` first for common Figma write/runtime rules.
+2. Use `figma-scan-nodes` to discover relevant nodes.
+3. Use `figma-set-text` when batch text replacement is needed.
+4. Use `bringing-codex-to-figma` when the task is capturing application views
    into Figma.
-4. Use `figma-create-figma-skill` to scaffold additional skills in this repo.
