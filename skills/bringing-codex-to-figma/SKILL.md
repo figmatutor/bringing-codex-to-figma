@@ -34,7 +34,7 @@ and post-capture grouping in Figma.
 
 - This skill owns **capture orchestration**: route/view discovery, runtime/browser prep, capture execution, upload monitoring, and grouping workflow coordination.
 - This skill does **not** redefine generic Figma Plugin API write rules.
-- For any Figma write behavior (validation, recovery, safety constraints), load and follow `$figma-use` first.
+- For any `use_figma`-based Plugin API write behavior (validation, recovery, safety constraints), load and follow `$figma-use` first.
 
 ## Dry-run mode
 
