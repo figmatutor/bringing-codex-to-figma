@@ -1,17 +1,22 @@
 ---
 name: figma-set-text
-description: Set text content in one or more Figma text nodes in batch. Use when the user wants to replace or fill text in Figma design nodes — e.g. applying data from a JSON file, translating text, or filling template placeholders. Requires node IDs (get them first with figma-scan-nodes).
+description: Thin helper skill for batch TEXT updates in Figma. Always load and follow figma-use first for shared Plugin API execution, font/validation/recovery policy, and write safety.
 license: MIT
 metadata:
   author: JooHyung Park <dusskapark@gmail.com>
-  version: "0.1.0"
+  version: "0.2.0"
   compatibility: |
     - mcp-server: figma
 ---
 
-# figma-set-text — Figma Batch Text Update Skill
+# figma-set-text — Figma Batch Text Update Helper Skill
 
-Apply new content to multiple Figma text nodes in a batch. The workflow handles font loading, error recovery, and chunk-based safety controls automatically.
+This is a **TEXT batch update helper skill**.
+
+Before running any `use_figma` script in this skill, **load `$figma-use` first** and follow it as the source of truth for:
+- generic Plugin API execution rules,
+- generic validation/recovery workflow,
+- generic write safety and error handling.
 
 ## Parameters
 
@@ -121,25 +126,12 @@ Pass an object to `setMultipleTextContents(params)`:
 
 - In the current `use_figma` runtime, chunking should be treated as an internal overload-reduction strategy for large edits, not as a formal contract for real-time progress reporting.
 
-## Error Handling
-
-### Partial Execution
-If an error occurs during text replacement:
-1. Do not retry immediately. Inspect the partially applied state first.
-2. Use `get_metadata` to confirm which text nodes already changed.
-3. Retry only the failed items.
-
-### Font-Related Errors
-- Automatic font loading handles mixed-font cases safely inside the workflow.
-- If a font cannot be loaded, fall back to `Inter Regular`.
-- For mixed-font nodes, normalize to the first character's font.
-
 ## Scripts
 
 - [setMultipleTextContents.js](scripts/setMultipleTextContents.js): Batch text replacement with chunking, font handling, and progress tracking
 - [parseNodeIdsFromUrl.js](scripts/parseNodeIdsFromUrl.js): Extract `nodeId` from a Figma URL when needed
 
-## Reference Documents
+## Shared Reference Documents (from `figma-use`)
 
-- [gotchas.md](references/gotchas.md): Known pitfalls and fixes, including font-loading issues
-- [validation-and-recovery.md](references/validation-and-recovery.md): Error recovery workflow
+- [figma-use gotchas](../figma-use/references/gotchas.md): Shared generic pitfalls and fixes
+- [figma-use validation/recovery](../figma-use/references/validation-and-recovery.md): Shared recovery workflow

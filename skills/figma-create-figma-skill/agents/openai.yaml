@@ -1,4 +1,0 @@
-interface:
-  display_name: "Figma Create Figma Skill"
-  short_description: "Scaffold a Codex-compatible Figma skill with shared references"
-  default_prompt: "Use $figma-create-figma-skill to scaffold a new Figma skill directory with SKILL.md, agents/openai.yaml, and shared reference symlinks."

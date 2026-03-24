@@ -1,17 +1,24 @@
 ---
 name: figma-scan-nodes
-description: Scan and list nodes in a Figma file by type. Use when the user wants to discover nodes in a Figma design — e.g. list all TEXT nodes, find all FRAMEs, or enumerate nodes of any type within a given parent. Returns structured metadata including position, size, depth, and type-specific properties. Use before figma-set-text to discover which text node IDs to target.
+description: Thin helper skill for scanning and listing Figma nodes by type. Always load and follow figma-use first for shared Plugin API execution, validation, and recovery rules.
 license: MIT
 metadata:
   author: JooHyung Park <dusskapark@gmail.com>
-  version: "0.1.0"
+  version: "0.2.0"
   compatibility: |
     - mcp-server: figma
 ---
 
-# figma-scan-nodes — Figma Node Scanning Skill
+# figma-scan-nodes — Figma Node Scanning Helper Skill
 
-Recursively scan a node and its subtree in a Figma file, then return matching nodes and structured metadata for the requested types.
+This is a **node-scan-only helper skill**.
+
+Before running any `use_figma` script in this skill, **load `$figma-use` first** and treat it as the source of truth for:
+- generic Plugin API rules,
+- validation patterns,
+- recovery/error-handling conventions.
+
+Use this skill only for recursive node scanning and structured node metadata extraction.
 
 ## Parameters
 
@@ -171,5 +178,5 @@ Use these values in the `types` array:
 ## Reference Documents
 
 - [url-parsing.md](references/url-parsing.md): Guide to Figma URL structure and parsing
-- [gotchas.md](references/gotchas.md): Known pitfalls and fixes
-- [validation-and-recovery.md](references/validation-and-recovery.md): Error recovery workflow
+- [figma-use gotchas](../figma-use/references/gotchas.md): Shared generic Figma gotchas
+- [figma-use validation/recovery](../figma-use/references/validation-and-recovery.md): Shared validation and recovery workflow
