@@ -28,7 +28,7 @@ and post-capture grouping in Figma.
 
 - Playwright available in target project: `npm install playwright`.
 - Figma MCP server reachable.
-- Before any Figma write step (including any `use_figma` usage), load `$figma-use` first and follow its generic write/validation/recovery rules.
+- Before any `use_figma`-based Figma write step, load `$figma-use` first and follow its generic Plugin API write, validation, and recovery rules.
 
 ## Skill boundary (important)
 
