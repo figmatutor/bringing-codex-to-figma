@@ -39,26 +39,34 @@ to obtain the new `fileKey` before generating additional capture IDs.
 LOCAL flows rely on `capture.js` already being present in the app HTML.
 EXTERNAL flows require runtime script injection or an already-instrumented page.
 
-## Poll Loop
+## Completion Check
 
 After firing `captureForDesign` in the browser:
 
 1. Wait a few seconds.
 2. Call `generate_figma_design({ captureId })`.
-3. If the status is `pending` or `processing`, wait and poll again.
+3. If the status is `pending` or `processing`, wait and check again.
 4. Stop only when the status is `completed`.
 
-Do not create a new `captureId` while polling the current one.
+Do not create a new `captureId` while waiting on the current one.
 
 ## Multi-Page Capture
 
 Each `captureId` captures one page or one prepared tab.
 
 - Generate one `captureId` per tab or view.
-- Fire captures in the intended order.
-- Poll all outstanding capture IDs in parallel.
+- Process captures one tab at a time.
+- Fire the current capture.
+- Wait only for that `captureId` until it completes.
+- Close the current tab.
+- Move to the next tab.
+
+Use a simple serial flow.
+
+- Correct: `fire A -> wait for completion -> close A -> fire B -> wait for completion -> close B`
+- Incorrect: `fire A -> fire B -> fire C`, then wait on them all later
 
 ## Returned URLs
 
-When a poll response returns a URL with `node-id=123-456`, convert it to `123:456`
+When a completion response returns a URL with `node-id=123-456`, convert it to `123:456`
 before storing it in the final mapping.

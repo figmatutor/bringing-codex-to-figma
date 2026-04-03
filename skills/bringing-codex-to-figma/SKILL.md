@@ -4,25 +4,25 @@ description: Route/view capture orchestration skill for moving local or deployed
 license: MIT
 metadata:
   author: JooHyung Park <dusskapark@gmail.com>
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # bringing-codex-to-figma
 
-Automate route/view discovery, browser preparation, capture triggering, upload polling,
-and post-capture grouping in Figma.
+Automate route/view discovery, browser preparation, capture triggering, completion
+confirmation, immediate tab cleanup, and post-capture grouping in Figma.
 
 `{SKILL_DIR}` means this skill's installation directory.
 
 ## Non-negotiable rules
 
 1. Ask and confirm pre-flight answers before discovery.
-2. Show discovered routes/views + groups and get explicit confirmation before Step 2.
+2. Show discovered routes/views + groups and get explicit confirmation before Step 5.
 3. Follow the project's documented startup process first (`README`, docs, scripts).
 4. Default to foreground interactive runs. Do not force background (`nohup`, trailing `&`) unless the user asks.
 5. Do not kill ports/processes preemptively. Inspect first, then ask before termination.
 6. For local bind/sandbox failures, request elevated execution once. If still blocked, ask the user to run the server manually.
-7. In Codex, use plain chat confirmations. Do not rely on Claude-only directives.
+7. When available, use dedicated user-input tools to ask detailed confirmation questions; otherwise use plain chat confirmations.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ and post-capture grouping in Figma.
 
 ## Skill boundary (important)
 
-- This skill owns **capture orchestration**: route/view discovery, runtime/browser prep, capture execution, upload monitoring, and grouping workflow coordination.
+- This skill owns **capture orchestration**: route/view discovery, runtime/browser prep, capture execution, completion confirmation, immediate tab cleanup, and grouping workflow coordination.
 - This skill does **not** redefine generic Figma Plugin API write rules.
 - For any `use_figma`-based Plugin API write behavior (validation, recovery, safety constraints), load and follow `$figma-use` first.
 
@@ -44,20 +44,9 @@ If user says `--dry-run`, `validation run`, `test only`, or `do not open a real 
 - Skip `generate_figma_design`, `execute-cdp.mjs`, browser readiness, and cleanup.
 - End after route/view plan + generated `.capture-session.json` validation.
 
-## Parallel contract
-
-Parallel execution is required.
-
-- Prefer sub-agents where available.
-- If not available, emulate with host parallel tool calls.
-- Keep these pairs parallel:
-  - RoutePlanner + RuntimeOperator
-  - CaptureIdProducer overlap with stable `--prepare`
-  - CaptureExecutor + UploadMonitor
-
 ## Workflow
 
-### Step 0: Pre-flight (hard gate)
+### Step 1: Confirm target and viewport
 
 Ask exactly two questions unless already provided:
 
@@ -75,15 +64,11 @@ Normalization:
 - Existing URL -> parse `fileKey` and optional `nodeId`.
 - Viewport -> normalize to `WxH`.
 
-Do not continue to Step 1 until both answers are explicit.
+Do not continue until both answers are explicit.
 
-### Step 1: Discovery (parallel)
+### Step 2: Discover routes or views
 
-Dispatch RoutePlanner and RuntimeOperator together.
-
-#### RoutePlanner
-
-Discover all navigable URL routes or SPA state views.
+Discover all navigable URL routes or SPA state views first.
 
 Use [references/route-detection.md](references/route-detection.md).
 
@@ -94,6 +79,8 @@ Rules:
 - Build `groups` and `expectedFrameCounts`.
 - LOCAL (`localhost`, `127.x`, `0.0.0.0`, `*.local`): ensure served HTML has `capture.js`; add if missing.
 - EXTERNAL: do not patch host. `capture.mjs --prepare` injects `capture.js` into prepared tabs; only fail if that injection fails.
+- Do not start browser or server work from this step unless discovery is impossible without a live app.
+- Do not mix this step with browser startup or capture execution.
 
 Return:
 
@@ -107,7 +94,7 @@ Return:
 }
 ```
 
-#### RuntimeOperator
+### Step 3: Start the app and browser
 
 Use [references/dev-server-detection.md](references/dev-server-detection.md).
 
@@ -116,6 +103,8 @@ Use [references/dev-server-detection.md](references/dev-server-detection.md).
 - If reachable, verify it is the correct project.
 - If not reachable, start server using project-documented command (README/docs/scripts) first.
 - Poll until reachable or return `serverStatus: "failed"`.
+- Run this after discovery is complete.
+- Do not continue until the app is reachable.
 
 2. Browser (non-dry-run)
 
@@ -137,9 +126,9 @@ Return:
 }
 ```
 
-### Step 1.5: Plan confirmation (hard gate)
+### Step 4: Confirm the capture plan
 
-Before Step 2, always show:
+Before continuing, always show:
 - ordered routes/views
 - groups
 - expectedFrameCounts
@@ -149,9 +138,7 @@ Ask exactly:
 
 If user requests changes, update plan and ask again.
 
-### Step 2: Prepare + capture IDs
-
-#### Step 2a: Run `--prepare`
+### Step 5: Prepare tabs
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/capture.mjs --prepare \
@@ -179,7 +166,7 @@ Recoveries:
   2. Retry once
   3. On second failure, report blocking view/route
 
-#### Step 2b: CaptureIdProducer (parallel with stable prepare)
+### Step 6: Generate capture IDs
 
 - Existing file: one capture ID per prepared view with `outputMode: "existingFile"`.
 - New file: first call with `outputMode: "newFile"`, share claim URL, wait for claim,
@@ -195,30 +182,32 @@ Return:
 
 After prepare + capture IDs complete, confirm tabs are visually ready.
 
-### Step 3: Capture and upload monitoring (parallel)
-
-#### CaptureExecutor (sequential fire)
+### Step 7: Capture each view and close its tab
 
 Use [references/cdp-architecture.md](references/cdp-architecture.md).
+
+For each prepared view, run this exact sequence:
+
+1. Fire the capture:
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> <captureId> <endpoint>
 ```
 
-Fire left-to-right exactly once per prepared tab.
-
-#### UploadMonitor (parallel poll)
-
-Poll all pending IDs with `generate_figma_design` until complete.
-
-For each completed capture:
-1. Read `node-id` if present.
-2. Convert `123-456` -> `123:456`.
-3. Close only that tab:
+2. Wait for completion of only that `captureId` with repeated `generate_figma_design({ captureId })` checks until complete.
+3. Read `node-id` if present.
+4. Convert `123-456` -> `123:456`.
+5. Close only that tab:
 
 ```bash
 cd <projectDir> && node {SKILL_DIR}/scripts/execute-cdp.mjs <viewName> --close-only
 ```
+
+Rules:
+- Process one prepared view at a time.
+- Do not fire the next view until the current view is confirmed complete.
+- Do not keep multiple outstanding capture IDs alive at once.
+- Close the tab as soon as the current capture is confirmed complete.
 
 Backoff for repeated `processing` states: `5s -> 10s -> 20s`.
 
@@ -233,7 +222,7 @@ Return:
 
 Missing `node-id` is allowed; do not fail solely for that.
 
-### Step 4: Browser cleanup
+### Step 8: Clean up the browser
 
 Close only the `--start-browser` helper process recorded in `.capture-browser.json`.
 Avoid broad port-kill patterns.
@@ -249,7 +238,7 @@ fi
 
 If PID shutdown is unavailable, ask the user to close browser manually.
 
-### Step 5: Group sections in Figma
+### Step 9: Group captured frames in Figma
 
 `$figma-use` must already be loaded before this step. Use `use_figma` only after applying figma-use write/validation/recovery rules.
 

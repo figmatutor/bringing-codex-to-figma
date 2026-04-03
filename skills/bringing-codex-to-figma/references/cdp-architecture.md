@@ -34,7 +34,7 @@ This avoids Playwright session ownership and works with the browser launched by
 
 | Signal | Meaning | Detectable by |
 |---|---|---|
-| MCP server confirms receipt | Upload reached Figma | `generate_figma_design` polling |
+| MCP server confirms receipt | Upload reached Figma | repeated `generate_figma_design` completion checks |
 | Figma app acknowledges | Desktop plugin processed the frame | `captureForDesign()` Promise resolve |
 
 In the MCP workflow the desktop plugin acknowledgement is not the relevant signal.
@@ -42,7 +42,7 @@ Waiting for the returned Promise can hang even though the upload succeeds. The c
 pattern is:
 
 - fire with `awaitPromise: false`
-- poll `generate_figma_design(captureId)` until it returns `completed`
+- wait on `generate_figma_design(captureId)` until it returns `completed`
 - close the tab only after completion is confirmed
 
 ## Port Discovery
@@ -59,7 +59,7 @@ not from the skill repo.
 ## Fire Order and Poll Strategy
 
 - Fire sequentially so frame ordering in Figma matches the intended left-to-right order.
-- Poll all outstanding capture IDs in parallel to minimize total wait time.
+- Wait only on the current capture ID until it completes.
 - Close each tab only after its capture ID returns `completed`.
 
 ## Tab Identity: Why `targetId` Instead of `document.title`
@@ -78,4 +78,4 @@ stale `targetId`s before opening fresh tabs.
 
 If raw CDP firing fails for a tab, pass the tab metadata directly to the tool layer
 and execute `window.figma.captureForDesign(...)` in the already-open tab using the
-available browser tooling, then continue polling the same `captureId`.
+available browser tooling, then continue waiting on the same `captureId`.

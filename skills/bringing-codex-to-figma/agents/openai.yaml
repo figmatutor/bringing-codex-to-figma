@@ -1,7 +1,7 @@
 interface:
   display_name: "Bringing Codex To Figma"
-  short_description: "Route/view capture orchestration into Figma"
-  default_prompt: "Use $bringing-codex-to-figma to orchestrate route/view discovery, browser/CDP capture execution, and upload/grouping flow. Load $figma-use first for any generic Figma write/validation/recovery rules."
+  short_description: "Capture web app views into Figma"
+  default_prompt: "Use $bringing-codex-to-figma to capture web app routes or views into Figma step by step. Load $figma-use first for any generic Figma write or recovery rules."
 
 dependencies:
   tools:
